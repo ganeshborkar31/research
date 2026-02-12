@@ -1,0 +1,15 @@
+[project]
+name = "knowledge-ai"
+version = "0.1.0"
+description = "Enterprise RAG + research ingestion platform"
+requires-python = ">=3.10"
+
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "langchain",
+  "langchain-openai",
+  "qdrant-client",
+  "python-dotenv",
+  "prometheus-client",
+]

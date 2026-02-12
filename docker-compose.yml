@@ -1,0 +1,124 @@
+version: "3.9"
+
+services:
+  api:
+    container_name: rag-api
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - qdrant
+      - redis
+      - rabbitmq
+    restart: always
+    networks:
+      - rag-network
+
+  postgres:
+    container_name: rag-postgres
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - rag-network
+
+  pgadmin:
+    container_name: rag-pgadmin
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    restart: always
+    networks:
+      - rag-network
+
+  qdrant:
+    container_name: rag-qdrant
+    image: qdrant/qdrant:v1.8.4
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: always
+    networks:
+      - rag-network
+
+  redis:
+    container_name: rag-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: always
+    networks:
+      - rag-network
+
+  rabbitmq:
+    container_name: rag-rabbitmq
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    restart: always
+    networks:
+      - rag-network
+
+  prometheus:
+    image: prom/prometheus
+    container_name: rag-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - rag-network
+
+  grafana:
+    image: grafana/grafana
+    container_name: rag-grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - rag-network
+
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: rag-loki
+    ports:
+      - "3100:3100"
+    networks:
+      - rag-network
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: rag-promtail
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./monitoring/promtail.yml:/etc/promtail/promtail.yml
+    networks:
+      - rag-network
+
+volumes:
+  postgres_data:
+  qdrant_data:
+
+networks:
+  rag-network:
+    driver: bridge
+

@@ -1,0 +1,109 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# UV cache
+.uv/
+.uv-cache/
+
+# =========================
+# Build / Distribution
+# =========================
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# =========================
+# Environment variables (CRITICAL)
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+*.out
+*.err
+
+# =========================
+# Coverage / Testing
+# =========================
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# VSCode
+# =========================
+.vscode/
+
+# =========================
+# PyCharm
+# =========================
+.idea/
+*.iml
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Docker
+# =========================
+docker/*.pid
+docker/*.sock
+
+# =========================
+# Kubernetes
+# =========================
+k8s/secrets.yaml
+k8s/*.secret.yaml
+
+# =========================
+# Helm
+# =========================
+helm/**/charts/
+helm/**/tmp/
+helm/**/.helmignore
+
+# =========================
+# Terraform (if you add later)
+# =========================
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+
+# =========================
+# Misc
+# =========================
+*.sqlite3
+*.db
