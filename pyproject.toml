@@ -12,4 +12,10 @@ dependencies = [
   "qdrant-client",
   "python-dotenv",
   "prometheus-client",
+  "pydantic-settings",
+  "asyncpg",
+  "aio-pika",
+  "redis",
+  "prometheus-fastapi-instrumentator",
+
 ]

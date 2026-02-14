@@ -52,9 +52,11 @@ COPY app ./app
 EXPOSE 8000
 
 # Production server
-CMD ["gunicorn", "app.main:app", \
-     "-k", "uvicorn.workers.UvicornWorker", \
-     "--bind", "0.0.0.0:8000", \
-     "--workers", "4", \
-     "--threads", "1", \
-     "--timeout", "60"]
+# CMD ["gunicorn", "app.main:app", \
+#      "-k", "uvicorn.workers.UvicornWorker", \
+#      "--bind", "0.0.0.0:8000", \
+#      "--workers", "4", \
+#      "--threads", "1", \
+#      "--timeout", "60"]
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
