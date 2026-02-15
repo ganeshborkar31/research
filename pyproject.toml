@@ -5,24 +5,45 @@ description = "Enterprise RAG + research ingestion platform"
 requires-python = ">=3.10"
 
 dependencies = [
+  # Core API
   "fastapi",
   "uvicorn",
+
+  # AI / RAG
   "langchain",
   "langchain-openai",
   "qdrant-client",
+
+  # Config
   "python-dotenv",
-  "prometheus-client",
   "pydantic-settings",
-  "asyncpg",
+
+  # Observability
+  "prometheus-client",
+  "prometheus-fastapi-instrumentator",
+
+  # Database
+  "asyncpg",              # async driver (app)
+  "psycopg[binary]",      # sync driver (alembic)
+  "alembic",
+
+  # Messaging / Cache
   "aio-pika",
   "redis",
-  "prometheus-fastapi-instrumentator",
-  "alembic",
-  "psycopg[binary]",
+]
 
+# ---------------------------------------
+# Test Dependencies (NOT installed in prod)
+# ---------------------------------------
+[project.optional-dependencies]
+test = [
   "pytest",
   "pytest-asyncio",
   "httpx",
   "testcontainers[postgresql]",
 
 ]
+
+
+[tool.setuptools]
+packages = ["app"]

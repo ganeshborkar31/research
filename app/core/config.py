@@ -1,17 +1,39 @@
+from functools import lru_cache
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "knowledge-ai"
-    ENV: str = "development"
+    # -------------------------
+    # App
+    # -------------------------
+    app_env: str = "dev"
+    app_port: int = 8000
 
-    POSTGRES_URL: str
-    REDIS_URL: str
-    QDRANT_URL: str
-    RABBITMQ_URL: str
+    # -------------------------
+    # Database
+    # -------------------------
+    async_postgres_url: str
+    sync_postgres_url: str
 
-    class Config:
-        env_file = ".env"
+    # -------------------------
+    # External Services
+    # -------------------------
+    redis_url: str
+    qdrant_url: str
+    rabbitmq_url: str
+
+    # -------------------------
+    # Pydantic Config
+    # -------------------------
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
 
-settings = Settings()
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+

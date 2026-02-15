@@ -99,7 +99,7 @@ def run_migrations_online() -> None:
     from sqlalchemy import create_engine
     import os
 
-    DATABASE_URL = os.getenv("POSTGRES_URL_SYNC")
+    DATABASE_URL = os.getenv("SYNC_POSTGRES_URL")
 
     if not DATABASE_URL:
         raise RuntimeError(
