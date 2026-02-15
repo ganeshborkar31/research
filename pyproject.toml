@@ -17,5 +17,12 @@ dependencies = [
   "aio-pika",
   "redis",
   "prometheus-fastapi-instrumentator",
+  "alembic",
+  "psycopg[binary]",
+
+  "pytest",
+  "pytest-asyncio",
+  "httpx",
+  "testcontainers[postgresql]",
 
 ]

@@ -46,8 +46,14 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 RUN useradd -m appuser
 USER appuser
 
+# # Copy application code
+# COPY app ./app
+
 # Copy application code
 COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./
+
 
 EXPOSE 8000
 

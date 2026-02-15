@@ -10,14 +10,37 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    # depends_on:
+    #   - postgres
+    #   - qdrant
+    #   - redis
+    #   - rabbitmq
     depends_on:
-      - postgres
-      - qdrant
-      - redis
-      - rabbitmq
+      migrate:
+        condition: service_completed_successfully
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
+
     restart: always
     networks:
       - rag-network
+
+  # postgres:
+  #   container_name: rag-postgres
+  #   image: postgres:16
+  #   environment:
+  #     POSTGRES_DB: ${POSTGRES_DB}
+  #     POSTGRES_USER: ${POSTGRES_USER}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   restart: always
+  #   networks:
+  #     - rag-network
 
   postgres:
     container_name: rag-postgres
@@ -29,6 +52,26 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: always
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    container_name: rag-migrate
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    command: alembic upgrade head
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
     networks:
       - rag-network
 
