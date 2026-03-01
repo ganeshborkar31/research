@@ -21,7 +21,11 @@ app = FastAPI(
 )
 
 # Health routes
-app.include_router(health_router)
+app.include_router(
+    health_router,
+    prefix="/api/v1/health",
+    tags=["Health"],
+    )
 
 # Prometheus metrics
 Instrumentator().instrument(app).expose(app)

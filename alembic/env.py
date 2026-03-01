@@ -2,8 +2,11 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy import create_engine
+from alembic import context, command, config
+import os
 
-from alembic import context
+from app.core.config import get_settings
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -92,18 +95,23 @@ def run_migrations_offline() -> None:
 #             context.run_migrations()
 
 
-# For production ready replaced default function with below function 
+# For production ready replace default function with below function
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
 
-    from sqlalchemy import create_engine
-    import os
+    settings = get_settings()
+    DATABASE_URL = settings.sync_postgres_url
+    
+    alembic_cfg = config.Config("alembic.ini")
+    # alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
+    # command.upgrade(alembic_cfg, "head")
 
-    DATABASE_URL = os.getenv("SYNC_POSTGRES_URL")
 
-    if not DATABASE_URL:
+    if not DATABASE_URL:    
+        alembic_cfg.set_main_option("sqlalchemy.url", DATABASE_URL)
+        command.upgrade(alembic_cfg, "head")
         raise RuntimeError(
-            "POSTGRES_URL_SYNC is not set. "
+            "SYNC_POSTGRES_URL is not set."
             "Alembic requires database URL via environment variable."
         )
 

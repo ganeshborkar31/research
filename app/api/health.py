@@ -4,7 +4,7 @@ from app.services import postgres, redis, qdrant, rabbitmq
 router = APIRouter()
 
 
-@router.get("/health")
+@router.get("/")
 async def health():
     return {"status": "ok"}
 
