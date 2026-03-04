@@ -1,7 +1,7 @@
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.user_api import UserCreate, UserUpdate
+from app.schemas.user_api import UserCreate, UserUpdate
 from app.models.user import User
 from app.services.security import hash_password
 

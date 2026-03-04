@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.domain.auth_api import (
+from app.schemas.auth_api import (
     AuthTokenResponse,
     LoginRequest,
     LogoutResponse,

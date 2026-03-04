@@ -1,7 +1,7 @@
 from collections import defaultdict, deque
 
 from app.core.config import get_settings
-from app.domain.live_chat import LiveChatRequest, LiveChatResponse
+from app.schemas.live_chat import LiveChatRequest, LiveChatResponse
 from app.infra.llm import GeminiClient
 
 

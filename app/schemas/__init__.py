@@ -1,6 +1,6 @@
-"""Domain models and contracts."""
+"""Pydantic schemas and API contracts."""
 
-from app.domain.auth_api import (
+from app.schemas.auth_api import (
     AuthTokenResponse,
     LoginRequest,
     LogoutResponse,
@@ -10,9 +10,9 @@ from app.domain.auth_api import (
     SignupRequest,
     VerifyOTPRequest,
 )
-from app.domain.live_chat import LiveChatRequest, LiveChatResponse
-from app.domain.user_api import UserCreate, UserDeleteOut, UserOut, UserUpdate
-from app.domain.user_memory import UserDocumentIn, UserHistoryEventIn, UserMemoryHit
+from app.schemas.live_chat import LiveChatRequest, LiveChatResponse
+from app.schemas.user_api import UserCreate, UserDeleteOut, UserOut, UserUpdate
+from app.schemas.user_memory import UserDocumentIn, UserHistoryEventIn, UserMemoryHit
 
 __all__ = [
     "SignupRequest",

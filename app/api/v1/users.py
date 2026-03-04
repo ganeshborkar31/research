@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.dependencies import get_current_access_claims
 from app.db.session import get_db
-from app.domain.user_api import UserCreate, UserDeleteOut, UserOut, UserUpdate
+from app.schemas.user_api import UserCreate, UserDeleteOut, UserOut, UserUpdate
 from app.services import user_service
 
 

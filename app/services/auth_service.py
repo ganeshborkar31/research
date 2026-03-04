@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.domain.auth_api import LoginRequest, RequestOTPRequest, SignupRequest, VerifyOTPRequest
+from app.schemas.auth_api import LoginRequest, RequestOTPRequest, SignupRequest, VerifyOTPRequest
 from app.infra.notifications import send_otp_code
 from app.models.auth import OTPChallenge, RefreshToken
 from app.models.user import User

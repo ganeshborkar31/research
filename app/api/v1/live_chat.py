@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from urllib.parse import parse_qs
 
 from app.api.v1.dependencies import get_current_access_claims
-from app.domain.live_chat import LiveChatRequest, LiveChatResponse
+from app.schemas.live_chat import LiveChatRequest, LiveChatResponse
 from app.infra.voice import build_twiml_gather_response
 from app.services.live_chat import get_live_chat_service
 

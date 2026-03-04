@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.domain.user_memory import UserDocumentIn
+from app.schemas.user_memory import UserDocumentIn
 from app.services.user_vector_store import UserVectorStore
 
 

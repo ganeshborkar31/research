@@ -10,7 +10,7 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qmodels
 
 from app.core.config import get_settings
-from app.domain.user_memory import UserDocumentIn, UserHistoryEventIn, UserMemoryHit
+from app.schemas.user_memory import UserDocumentIn, UserHistoryEventIn, UserMemoryHit
 from app.models.user import User
 
 
