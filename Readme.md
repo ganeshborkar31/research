@@ -1,137 +1,111 @@
-# PRODUCT ARCHITECTURE (Real, Scalable)
+# Knowledge AI
 
-```
-                   ┌────────────────────┐
-                   │ External Sources   │
-                   │ Arxiv, Blogs, APIs │
-                   └─────────┬──────────┘
-                             │
-                 ┌───────────▼────────────┐
-                 │ Ingestion Microservice │
-                 └───────────┬────────────┘
-                             │
-        ┌──────────────┐     ▼      ┌──────────────┐
-        │ Auth Service │ ──▶ Vector DB ◀── Internal Docs
-        └──────────────┘              └──────────────┘
-                             │
-                     ┌───────▼────────┐
-                     │ RAG Engine     │
-                     │ (LangChain)    │
-                     └───────┬────────┘
-                             │
-               ┌─────────────▼─────────────┐
-               │ API Gateway (FastAPI)     │
-               └─────────────┬─────────────┘
-                             │
-               ┌─────────────▼─────────────┐
-               │ Web App / Client Apps     │
-               └───────────────────────────┘
+## Overview
 
+Knowledge AI is a local, containerized RAG platform built with FastAPI,
+LangChain, PostgreSQL, Qdrant, Redis, RabbitMQ, and observability tools.
 
-raw_data → clean_text → chunk → embed → store → index
+### Architecture Flow
 
+- Ingestion: raw data -> clean text -> chunk -> embed -> store -> index
+- Query: rewrite -> retrieve -> rerank -> context filter -> generate -> verify
 
-Query → Rewrite → Retrieve → Rerank → Context Filter → Generate → Verify
+## Initial Setup
 
+1. Install prerequisites:
+   - Docker
+   - Docker Compose v2
+   - VS Code + Python extension (only for debug mode)
+2. Create or update `.env` at the project root.
+3. Build images:
+
+```bash
+docker compose build
 ```
 
+Why this is needed:
 
+- `.env` provides runtime config for API, DB, and migration containers.
+- Building ensures all Python dependencies, including `debugpy`, are in the
+  image.
 
-# Knowledge AI – Local Integration Testing Guide
+## Run Services
 
-This document explains how to start the system and test each service individually.
-
----
-
-# 🚀 1. Start All Services
-
-Build and start containers:
+### Normal Run
 
 ```bash
 docker compose up -d --build
 ```
 
-Check running services:
+Useful commands:
 
 ```bash
 docker compose ps
-```
-
-View logs (example: API):
-
-```bash
 docker compose logs -f api
 ```
 
----
+### Debug Run
 
-# 🌐 2. API Testing (FastAPI)
-
-### Health Check (Liveness)
-
-```
-http://localhost:8000/health
+```bash
+docker compose -f docker-compose.yml -f docker-compose.debug.yml up --build
 ```
 
-Expected:
+What changes in debug mode:
+
+- Base file runs `uvicorn` on port `8000`.
+- Debug override runs `debugpy` and exposes port `5678`.
+- `--wait-for-client` pauses app startup until your debugger attaches.
+
+Why split normal and debug compose files:
+
+- Normal mode stays simple and fast.
+- Debug mode is opt-in and does not affect regular runs.
+
+## VS Code Debug Attach
+
+Your attach config is in `.vscode/launch.json`.
+
+Expected values:
+
+- Host: `localhost`
+- Port: `5678`
+- Path mapping: `${workspaceFolder}` -> `/app`
+
+Attach steps:
+
+1. Start the debug compose command.
+2. Run `Attach FastAPI (Docker)` in VS Code.
+3. Call an API endpoint to hit breakpoints.
+
+## API Endpoints
+
+- Health: <http://localhost:8000/health>
+- Ready: <http://localhost:8000/ready>
+- Docs: <http://localhost:8000/docs>
+- Metrics: <http://localhost:8000/metrics>
+
+Expected health response:
 
 ```json
 {"status": "ok"}
 ```
 
-✔ Confirms API container is running.
-
----
-
-### Readiness Check (Infrastructure Validation)
-
-```
-http://localhost:8000/ready
-```
-
-Expected:
+Expected ready response:
 
 ```json
 {"status": "ready"}
 ```
 
-✔ Confirms connections to:
-- Postgres
-- Redis
-- Qdrant
-- RabbitMQ
+## Infrastructure Checks
 
----
+### PostgreSQL
 
-### API Docs (Swagger)
-
-```
-http://localhost:8000/docs
-```
-
-✔ Interactive API testing interface.
-
----
-
-### Metrics (Prometheus)
-
-```
-http://localhost:8000/metrics
-```
-
-✔ Exposes application metrics for monitoring.
-
----
-
-# 🐘 3. PostgreSQL Testing
-
-Connect inside container:
+- Concept: Relational system of record for structured application data.
+- Why we use it: Stores durable data such as users, metadata, and jobs.
 
 ```bash
 docker exec -it rag-postgres psql -U raguser -d ragdb
 ```
-
-Run:
 
 ```sql
 SELECT 1;
@@ -139,168 +113,89 @@ SELECT 1;
 \l
 ```
 
-✔ Confirms database and user are properly configured.
+### Redis
 
----
-
-# 🟥 4. Redis Testing
-
-Connect to Redis CLI:
+- Concept: In-memory key-value store for low-latency operations.
+- Why we use it: Supports caching and short-lived state to reduce DB load.
 
 ```bash
 docker exec -it rag-redis redis-cli
 ```
 
-Run:
-
-```bash
+```text
 PING
-```
-
-Expected:
-
-```
 PONG
 ```
 
-✔ Confirms Redis is operational.
+### Qdrant
 
----
+- Concept: Vector database optimized for similarity search.
+- Why we use it: Stores embeddings and retrieves semantically relevant chunks.
 
-# 🔎 5. Qdrant Testing
+- Collections API: <http://localhost:6333/collections>
 
-Open in browser:
-
-```
-http://localhost:6333/collections
-```
-
-Expected:
+Expected response:
 
 ```json
 {"result":{"collections":[]}}
 ```
 
-✔ Confirms Vector Database is running.
+### RabbitMQ
 
----
+- Concept: Message broker for async, decoupled processing.
+- Why we use it: Handles background tasks without blocking API requests.
 
-# 🐇 6. RabbitMQ Testing
+- Management UI: <http://localhost:15672>
+- Default username: `guest`
+- Default password: `guest`
 
-RabbitMQ Management UI:
+### Prometheus
 
-```
-http://localhost:15672
-```
+- Concept: Time-series metrics collection and querying system.
+- Why we use it: Scrapes service metrics for performance and reliability checks.
 
-Login:
-- Username: `guest`
-- Password: `guest`
+- UI: <http://localhost:9090>
+- Query: `up`
 
-✔ Check:
-- Queues
-- Connections
-- Exchanges
+### Grafana
 
----
+- Concept: Visualization layer for metrics and logs.
+- Why we use it: Builds operational dashboards and troubleshooting views.
 
-# 📊 7. Prometheus
+- UI: <http://localhost:3000>
+- Default username: `admin`
+- Default password: `admin`
 
-```
-http://localhost:9090
-```
+### Loki
 
-Run query:
+- Concept: Log aggregation backend with label-based indexing.
+- Why we use it: Centralizes container logs for cross-service debugging.
 
-```
-up
-```
+### Promtail
 
-✔ Confirms metrics collection from services.
+- Concept: Log shipping agent for Loki.
+- Why we use it: Reads container logs and forwards them to Loki.
 
----
+### Logs
 
-# 📈 8. Grafana
+Loki and Promtail collect container logs for Grafana exploration.
 
-```
-http://localhost:3000
-```
-
-Default Login:
-- admin
-- admin
-
-✔ Used for dashboards and observability.
-
----
-
-# 📝 9. Logs (Loki + Promtail)
-
-Logs are automatically collected and can be viewed in Grafana via Loki datasource.
-
-✔ Enables centralized logging for all containers.
-
----
-
-# 🧪 10. Full Integration Test
+## Full Integration Check
 
 1. Ensure all containers are running.
-2. Open:
+2. Open <http://localhost:8000/ready>.
+3. If response is `{"status":"ready"}`, integration is successful.
 
-```
-http://localhost:8000/ready
-```
+## Stop and Reset
 
-If response is:
-
-```json
-{"status":"ready"}
-```
-
-The entire infrastructure stack is successfully integrated.
-
----
-
-# 🛑 Stop Services
+Stop services:
 
 ```bash
 docker compose down
 ```
 
-Remove volumes (clean reset):
+Stop and remove volumes:
 
 ```bash
 docker compose down -v
 ```
-
----
-
-# 📦 Architecture Overview
-
-Services running locally:
-
-- FastAPI (API)
-- PostgreSQL (Database)
-- Redis (Cache)
-- Qdrant (Vector DB)
-- RabbitMQ (Message Broker)
-- Prometheus (Metrics)
-- Grafana (Visualization)
-- Loki (Log Aggregation)
-
----
-
-# 🧠 Testing Strategy
-
-Order of validation:
-
-1. Containers running
-2. API health
-3. Infrastructure readiness
-4. Metrics
-5. Logs
-6. Queue connectivity
-
-This ensures production-grade reliability.
-
----
