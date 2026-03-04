@@ -96,10 +96,13 @@ def run_migrations_offline() -> None:
 # For production ready replace default function with below function
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    database_url = alembic_config.get_main_option("sqlalchemy.url")
-    if not database_url:
-        settings = get_settings()
-        database_url = settings.sync_postgres_url
+    # database_url = alembic_config.get_main_option("sqlalchemy.url")
+    # if not database_url:
+    #     settings = get_settings()
+    #     database_url = settings.sync_postgres_url
+    
+    settings = get_settings()
+    database_url = settings.sync_postgres_url
 
     if not database_url:
         raise RuntimeError(

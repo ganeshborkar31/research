@@ -13,9 +13,30 @@ if str(ROOT_DIR) not in sys.path:
 
 
 @pytest_asyncio.fixture
-async def client():
+async def client(monkeypatch):
+    # Keep tests deterministic and offline by disabling external LLM calls.
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-secret")
+
+    from app.core.config import get_settings
+    from app.services import live_chat as live_chat_module
     from app.main import app
 
+    get_settings.cache_clear()
+    live_chat_module._live_chat_service = None
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+    live_chat_module._live_chat_service = None
+    get_settings.cache_clear()
+
+
+@pytest.fixture
+def auth_headers(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-secret")
+    from app.core.config import get_settings
+    from app.services.jwt_service import create_access_token
+
+    get_settings.cache_clear()
+    token = create_access_token("test-user-id", "tenant-1").token
+    return {"Authorization": f"Bearer {token}"}
