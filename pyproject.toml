@@ -41,8 +41,7 @@ test = [
   "pytest",
   "pytest-asyncio",
   "httpx",
-  "testcontainers[postgresql]",
+  "testcontainers[postgresql,redis]",
 
 ]
-
 

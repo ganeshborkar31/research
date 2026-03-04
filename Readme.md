@@ -117,6 +117,20 @@ Expected ready response:
 {"status": "ready"}
 ```
 
+## Testing
+
+- Unit/API tests (default, fast, no real infrastructure):
+
+```bash
+pytest -q
+```
+
+- Integration tests with Testcontainers (PostgreSQL + Redis + Qdrant):
+
+```bash
+pytest -q -m integration tests/integration
+```
+
 ## Infrastructure Checks
 
 ### PostgreSQL
