@@ -76,8 +76,23 @@ async def signup(db: AsyncSession, payload: SignupRequest) -> tuple[User, OTPDis
 
 
 async def login(db: AsyncSession, payload: LoginRequest) -> TokenBundle:
-    user = await _find_user_by_identifier(db, payload.tenant_id, payload.username_or_email)
-    if not user or not verify_password(payload.password, user.password_hash):
+    return await login_with_optional_tenant(
+        db,
+        tenant_id=payload.tenant_id,
+        username_or_email=payload.username_or_email,
+        password=payload.password,
+    )
+
+
+async def login_with_optional_tenant(
+    db: AsyncSession,
+    *,
+    tenant_id: str | None,
+    username_or_email: str,
+    password: str,
+) -> TokenBundle:
+    user = await _find_user_for_login(db, tenant_id, username_or_email)
+    if not user or not verify_password(password, user.password_hash):
         raise InvalidCredentialsError("Invalid username/email or password.")
 
     if user.email_verified_at is None:
@@ -129,10 +144,10 @@ async def verify_otp(db: AsyncSession, payload: VerifyOTPRequest) -> TokenBundle
     if challenge.attempt_count >= challenge.max_attempts:
         raise OTPVerificationError("OTP attempts exceeded.")
 
-    # if hash_value(payload.otp_code) != challenge.code_hash:
-    #     challenge.attempt_count += 1
-    #     await db.commit()
-    #     raise OTPVerificationError("Invalid OTP.")
+    if hash_value(payload.otp_code) != challenge.code_hash:
+        challenge.attempt_count += 1
+        await db.commit()
+        raise OTPVerificationError("Invalid OTP.")
 
     challenge.consumed_at = now
     if payload.channel == "email":
@@ -215,6 +230,26 @@ async def _find_user_by_identifier(db: AsyncSession, tenant_id: str, identifier:
     )
     result = await db.execute(query)
     return result.scalar_one_or_none()
+
+
+async def _find_user_for_login(
+    db: AsyncSession,
+    tenant_id: str | None,
+    identifier: str,
+) -> User | None:
+    if tenant_id:
+        return await _find_user_by_identifier(db, tenant_id, identifier)
+
+    query = select(User).where(or_(User.username == identifier, User.email == identifier)).limit(2)
+    result = await db.execute(query)
+    users = list(result.scalars().all())
+    if not users:
+        return None
+    if len(users) > 1:
+        raise InvalidCredentialsError(
+            "Multiple tenant accounts found. Use 'tenant_id|username_or_email' in form login."
+        )
+    return users[0]
 
 
 async def _create_and_send_otp(
