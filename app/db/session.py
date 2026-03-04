@@ -1,30 +1,12 @@
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from functools import lru_cache
+from typing import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
 from app.core.config import get_settings
-from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import (
-    create_async_engine,
-    async_sessionmaker,
-    AsyncSession,
-)
-import os
-
-settings = get_settings()
-engine = create_async_engine(settings.async_postgres_url, echo=True)
-
-AsyncSessionLocal = async_sessionmaker(
-    engine,
-    expire_on_commit=False,
-)
 
 
-from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import (
-    create_async_engine,
-    async_sessionmaker,
-    AsyncSession,
-)
-
-
+@lru_cache(maxsize=1)
 def get_engine():
     settings = get_settings()
     return create_async_engine(
@@ -33,16 +15,14 @@ def get_engine():
     )
 
 
+@lru_cache(maxsize=1)
 def get_sessionmaker():
-    engine = get_engine()
     return async_sessionmaker(
-        engine,
+        get_engine(),
         expire_on_commit=False,
     )
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    session_maker = get_sessionmaker()
-
-    async with session_maker() as session:
+    async with get_sessionmaker()() as session:
         yield session

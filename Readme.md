@@ -77,6 +77,27 @@ Attach steps:
 2. Run `Attach FastAPI (Docker)` in VS Code.
 3. Call an API endpoint to hit breakpoints.
 
+## Alembic Migrations
+
+- Concept: Alembic manages PostgreSQL schema changes as versioned migration
+  files.
+- Why we use it: Keeps DB schema consistent across local/dev/prod environments.
+
+How migrations run in this project:
+
+- `migrate` service in `docker-compose.yml` executes `alembic upgrade head`.
+- `api` waits for `migrate` to complete successfully before startup.
+
+Useful migration commands:
+
+```bash
+# apply latest migrations
+docker compose run --rm migrate
+
+# create a new migration file
+docker compose run --rm migrate alembic revision --autogenerate -m "add users table"
+```
+
 ## API Endpoints
 
 - Health: <http://localhost:8000/health>
@@ -100,7 +121,7 @@ Expected ready response:
 
 ### PostgreSQL
 
-- Concept: Relational system of record for structured application data.
+- Relational system of record for structured application data.
 - Why we use it: Stores durable data such as users, metadata, and jobs.
 
 ```bash
@@ -113,9 +134,26 @@ SELECT 1;
 \l
 ```
 
+### PgAdmin
+
+- Web UI for managing PostgreSQL databases.
+- Why we use it: Easier schema/data inspection than terminal-only SQL.
+
+- UI: <http://localhost:5051>
+- Login email: value of `PGADMIN_EMAIL` in `.env`
+- Login password: value of `PGADMIN_PASSWORD` in `.env`
+
+Add server in PgAdmin:
+
+1. Name: `rag-postgres`
+2. Host: `postgres`
+3. Port: `5432`
+4. Username: value of `POSTGRES_USER`
+5. Password: value of `POSTGRES_PASSWORD`
+
 ### Redis
 
-- Concept: In-memory key-value store for low-latency operations.
+- In-memory key-value store for low-latency operations.
 - Why we use it: Supports caching and short-lived state to reduce DB load.
 
 ```bash
@@ -129,7 +167,7 @@ PONG
 
 ### Qdrant
 
-- Concept: Vector database optimized for similarity search.
+- Vector database optimized for similarity search.
 - Why we use it: Stores embeddings and retrieves semantically relevant chunks.
 
 - Collections API: <http://localhost:6333/collections>
@@ -151,7 +189,7 @@ Expected response:
 
 ### Prometheus
 
-- Concept: Time-series metrics collection and querying system.
+- Time-series metrics collection and querying system.
 - Why we use it: Scrapes service metrics for performance and reliability checks.
 
 - UI: <http://localhost:9090>
@@ -159,7 +197,7 @@ Expected response:
 
 ### Grafana
 
-- Concept: Visualization layer for metrics and logs.
+- Visualization layer for metrics and logs.
 - Why we use it: Builds operational dashboards and troubleshooting views.
 
 - UI: <http://localhost:3000>
@@ -168,12 +206,12 @@ Expected response:
 
 ### Loki
 
-- Concept: Log aggregation backend with label-based indexing.
+- Log aggregation backend with label-based indexing.
 - Why we use it: Centralizes container logs for cross-service debugging.
 
 ### Promtail
 
-- Concept: Log shipping agent for Loki.
+- Log shipping agent for Loki.
 - Why we use it: Reads container logs and forwards them to Loki.
 
 ### Logs
@@ -194,7 +232,7 @@ Stop services:
 docker compose down
 ```
 
-Stop and remove volumes:
+Stop and remove volumes 🛑:
 
 ```bash
 docker compose down -v
