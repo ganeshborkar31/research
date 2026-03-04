@@ -24,6 +24,32 @@ class Settings(BaseSettings):
     rabbitmq_url: str
 
     # -------------------------
+    # AI Providers
+    # -------------------------
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.5-flash"
+
+    # -------------------------
+    # Voice Providers
+    # -------------------------
+    twilio_account_sid: str | None = None
+    twilio_auth_token: str | None = None
+    twilio_phone_number: str | None = None
+
+    # -------------------------
+    # Auth / JWT
+    # -------------------------
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_exp_minutes: int = 15
+    refresh_token_exp_days: int = 30
+    refresh_cookie_name: str = "refresh_token"
+    refresh_cookie_secure: bool = False
+    refresh_cookie_samesite: str = "lax"
+    otp_exp_minutes: int = 10
+    otp_length: int = 6
+
+    # -------------------------
     # Pydantic Config
     # -------------------------
     model_config = ConfigDict(
@@ -36,4 +62,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
