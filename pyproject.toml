@@ -8,6 +8,7 @@ dependencies = [
   # Core API
   "fastapi",
   "uvicorn",
+  "debugpy",
 
   # AI / RAG
   "langchain",
@@ -43,6 +44,5 @@ test = [
   "testcontainers[postgresql]",
 
 ]
-
 
 

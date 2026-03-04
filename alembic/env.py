@@ -1,21 +1,19 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from sqlalchemy import create_engine
-from alembic import context, command, config
-import os
+from alembic import context
 
 from app.core.config import get_settings
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
-config = context.config
+alembic_config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+if alembic_config.config_file_name is not None:
+    fileConfig(alembic_config.config_file_name)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
@@ -47,7 +45,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = alembic_config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -100,23 +98,16 @@ def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
 
     settings = get_settings()
-    DATABASE_URL = settings.sync_postgres_url
-    
-    alembic_cfg = config.Config("alembic.ini")
-    # alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
-    # command.upgrade(alembic_cfg, "head")
+    database_url = settings.sync_postgres_url
 
-
-    if not DATABASE_URL:    
-        alembic_cfg.set_main_option("sqlalchemy.url", DATABASE_URL)
-        command.upgrade(alembic_cfg, "head")
+    if not database_url:
         raise RuntimeError(
-            "SYNC_POSTGRES_URL is not set."
+            "SYNC_POSTGRES_URL is not set. "
             "Alembic requires database URL via environment variable."
         )
 
     connectable = create_engine(
-        DATABASE_URL,
+        database_url,
         poolclass=pool.NullPool,
     )
 
