@@ -92,10 +92,10 @@ Useful migration commands:
 
 ```bash
 # apply latest migrations
-docker compose run --rm migrate
+docker compose run --rm --build migrate
 
 # create a new migration file
-docker compose run --rm migrate alembic revision --autogenerate -m "add users table"
+docker compose run --rm --build migrate alembic revision --autogenerate -m "add users table"
 ```
 
 ## API Endpoints
@@ -104,6 +104,89 @@ docker compose run --rm migrate alembic revision --autogenerate -m "add users ta
 - Ready: <http://localhost:8000/ready>
 - Docs: <http://localhost:8000/docs>
 - Metrics: <http://localhost:8000/metrics>
+
+## Realtime Voice (MCP Phase 1)
+
+- WebSocket endpoint: `ws://localhost:8000/api/v1/live-chat/voice/ws?token=<access_token>`
+- Protocol: `mcp.voice.v1`
+- Agent profiles endpoint: `GET /api/v1/live-chat/voice/agents`
+
+Voice STT providers (backend `input.audio` transcription):
+
+- `VOICE_STT_PROVIDER=auto` (default): Gemini if `GEMINI_API_KEY` exists, else Whisper if `WHISPER_API_KEY` exists, else stub.
+- `VOICE_STT_PROVIDER=gemini`: force Gemini STT (`VOICE_STT_GEMINI_MODEL`, default `gemini-2.0-flash`).
+- `VOICE_STT_PROVIDER=whisper`: force Whisper-compatible STT (`WHISPER_BASE_URL`, `WHISPER_MODEL`, `WHISPER_API_KEY`).
+- `VOICE_STT_PROVIDER=stub`: deterministic local stub for tests.
+
+Example `.env` for real backend audio transcription via Gemini:
+
+```env
+VOICE_STT_PROVIDER=gemini
+GEMINI_API_KEY=your_key_here
+VOICE_STT_GEMINI_MODEL=gemini-2.0-flash
+```
+
+Voice TTS providers (backend `tts.chunk` playable audio):
+
+- `VOICE_TTS_PROVIDER=auto` (default): ElevenLabs if `ELEVENLABS_API_KEY` exists, else OpenAI if `OPENAI_API_KEY` exists, else Azure if `AZURE_SPEECH_KEY` + `AZURE_SPEECH_REGION` exist, else stub.
+- `VOICE_TTS_PROVIDER=elevenlabs`: `ELEVENLABS_API_KEY`, `VOICE_TTS_ELEVENLABS_VOICE_ID`, `VOICE_TTS_ELEVENLABS_MODEL_ID`, `VOICE_TTS_ELEVENLABS_OUTPUT_FORMAT`.
+- `VOICE_TTS_PROVIDER=openai`: `OPENAI_API_KEY`, `VOICE_TTS_OPENAI_MODEL`, `VOICE_TTS_OPENAI_VOICE`, `VOICE_TTS_OPENAI_FORMAT`.
+- `VOICE_TTS_PROVIDER=azure`: `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `VOICE_TTS_AZURE_VOICE_NAME`, `VOICE_TTS_AZURE_OUTPUT_FORMAT`.
+- `VOICE_TTS_PROVIDER=stub`: deterministic local bytes for tests.
+
+Example `.env` for real live voice output via ElevenLabs:
+
+```env
+VOICE_TTS_PROVIDER=elevenlabs
+ELEVENLABS_API_KEY=your_key_here
+VOICE_TTS_ELEVENLABS_VOICE_ID=EXAVITQu4vr4xnSDxMaL
+VOICE_TTS_ELEVENLABS_MODEL_ID=eleven_turbo_v2_5
+VOICE_TTS_ELEVENLABS_OUTPUT_FORMAT=mp3_44100_128
+```
+
+Client message examples:
+
+```json
+{"type":"session.start","session_id":"voice-session-1"}
+```
+
+```json
+{"type":"agent.set","agent_id":"interview"}
+```
+
+```json
+{"type":"input.text","text":"Tell me a quick interview tip"}
+```
+
+```json
+{"type":"input.audio","mime_type":"audio/wav","audio_b64":"<base64-audio>"}
+```
+
+Server event examples:
+
+```json
+{"type":"session.started","protocol":"mcp.voice.v1","session_id":"voice-session-1"}
+```
+
+```json
+{"type":"agent.updated","session_id":"voice-session-1","agent":{"agent_id":"interview","name":"Interview Coach","description":"...","domain":"career"}}
+```
+
+```json
+{"type":"stt.final","session_id":"voice-session-1","text":"..."}
+```
+
+```json
+{"type":"llm.chunk","session_id":"voice-session-1","content":"..."}
+```
+
+```json
+{"type":"tts.chunk","session_id":"voice-session-1","mime_type":"audio/mpeg","audio_b64":"..."}
+```
+
+```json
+{"type":"response.done","session_id":"voice-session-1","text":"..."}
+```
 
 Expected health response:
 
