@@ -19,15 +19,15 @@ async def client(monkeypatch):
     monkeypatch.setenv("JWT_SECRET_KEY", "test-secret")
 
     from app.core.config import get_settings
-    from app.services import live_chat as live_chat_module
+    import app.services.voice_chat_service as voice_chat_service_module
     from app.main import app
 
     get_settings.cache_clear()
-    live_chat_module._live_chat_service = None
+    voice_chat_service_module._voice_chat_service = None
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-    live_chat_module._live_chat_service = None
+    voice_chat_service_module._voice_chat_service = None
     get_settings.cache_clear()
 
 

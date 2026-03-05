@@ -71,6 +71,7 @@ async def test_store_user_document_and_search():
     assert collection_name == "user_documents_v1"
     assert points[0].payload["tenant_id"] == "tenant-1"
     assert points[0].payload["user_id"] == "user-1"
+    assert points[0].payload["chat_id"] == "__global__"
     assert points[0].payload["record_type"] == "document"
 
     hits = await store.search_user_documents(
@@ -84,6 +85,32 @@ async def test_store_user_document_and_search():
     assert hits[0].metadata["doc_type"] == "contract"
 
 
+@pytest.mark.asyncio
+async def test_search_user_documents_scoped_to_chat_and_global():
+    client = FakeQdrantClient()
+    store = UserVectorStore(client=client, vector_size=8)
+
+    hits = await store.search_user_documents(
+        tenant_id="tenant-1",
+        user_id="user-1",
+        chat_id="chat-123",
+        include_global=True,
+        query="contract",
+        limit=3,
+    )
+
+    assert len(hits) == 1
+    assert len(client.queries) == 2
+
+    first_filter = client.queries[0]["query_filter"]
+    second_filter = client.queries[1]["query_filter"]
+    first_values = {condition.match.value for condition in first_filter.must}
+    second_values = {condition.match.value for condition in second_filter.must}
+
+    assert "chat-123" in first_values
+    assert "__global__" in second_values
+
+
 def test_embedding_is_deterministic():
     store = UserVectorStore(client=FakeQdrantClient(), vector_size=8)
     vec1 = store._embed_text("same text")
@@ -93,4 +120,3 @@ def test_embedding_is_deterministic():
     assert len(vec1) == 8
     assert vec1 == vec2
     assert vec1 != vec3
-
