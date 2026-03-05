@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app.api.health import router as health_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.chats import router as chats_router
 from app.api.v1.live_chat import router as live_chat_router
 from app.api.v1.users import router as users_router
 
@@ -18,6 +19,11 @@ def include_api_routers(app: FastAPI) -> None:
         tags=["Live Chat"],
     )
     app.include_router(
+        chats_router,
+        prefix="/api/v1/chats",
+        tags=["Chats"],
+    )
+    app.include_router(
         auth_router,
         prefix="/api/v1/auth",
         tags=["Auth"],
@@ -27,4 +33,3 @@ def include_api_routers(app: FastAPI) -> None:
         prefix="/api/v1/users",
         tags=["Users"],
     )
-
