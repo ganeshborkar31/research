@@ -68,6 +68,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+    volumes:
+      - .:/app
     command: alembic upgrade head
     env_file:
       - .env
