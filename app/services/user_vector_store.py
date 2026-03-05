@@ -40,12 +40,14 @@ class UserVectorStore:
     async def store_user_document(self, payload: UserDocumentIn) -> None:
         await self._ensure_collections()
         vector = self._embed_text(payload.content)
+        scoped_chat_id = payload.chat_id or "__global__"
         point = qmodels.PointStruct(
             id=f"{payload.tenant_id}:{payload.user_id}:{payload.document_id}",
             vector=vector,
             payload={
                 "tenant_id": payload.tenant_id,
                 "user_id": payload.user_id,
+                "chat_id": scoped_chat_id,
                 "record_type": "document",
                 "source": payload.source,
                 "content": payload.content,
@@ -113,6 +115,8 @@ class UserVectorStore:
         tenant_id: str,
         user_id: str,
         query: str,
+        chat_id: str | None = None,
+        include_global: bool = True,
         limit: int = 5,
     ) -> list[UserMemoryHit]:
         return await self._search(
@@ -120,6 +124,8 @@ class UserVectorStore:
             tenant_id=tenant_id,
             user_id=user_id,
             query=query,
+            chat_id=chat_id,
+            include_global=include_global,
             limit=limit,
         )
 
@@ -129,6 +135,7 @@ class UserVectorStore:
         tenant_id: str,
         user_id: str,
         query: str,
+        chat_id: str | None = None,
         limit: int = 5,
     ) -> list[UserMemoryHit]:
         return await self._search(
@@ -136,6 +143,8 @@ class UserVectorStore:
             tenant_id=tenant_id,
             user_id=user_id,
             query=query,
+            chat_id=chat_id,
+            include_global=True,
             limit=limit,
         )
 
@@ -146,27 +155,73 @@ class UserVectorStore:
         tenant_id: str,
         user_id: str,
         query: str,
+        chat_id: str | None,
+        include_global: bool,
         limit: int,
     ) -> list[UserMemoryHit]:
         await self._ensure_collections()
-        response = await self._client.query_points(
-            collection_name=collection_name,
-            query=self._embed_text(query),
-            query_filter=qmodels.Filter(
-                must=[
-                    qmodels.FieldCondition(
-                        key="tenant_id",
-                        match=qmodels.MatchValue(value=tenant_id),
-                    ),
-                    qmodels.FieldCondition(
-                        key="user_id",
-                        match=qmodels.MatchValue(value=user_id),
-                    ),
-                ]
+        query_vector = self._embed_text(query)
+        base_conditions: list[qmodels.FieldCondition] = [
+            qmodels.FieldCondition(
+                key="tenant_id",
+                match=qmodels.MatchValue(value=tenant_id),
             ),
+            qmodels.FieldCondition(
+                key="user_id",
+                match=qmodels.MatchValue(value=user_id),
+            ),
+        ]
+
+        if collection_name == self._history_collection and chat_id:
+            response = await self._query_points(
+                collection_name=collection_name,
+                query_vector=query_vector,
+                conditions=[
+                    *base_conditions,
+                    qmodels.FieldCondition(
+                        key="session_id",
+                        match=qmodels.MatchValue(value=chat_id),
+                    ),
+                ],
+                limit=limit,
+            )
+            return [self._to_hit(point) for point in response.points]
+
+        if collection_name == self._docs_collection and chat_id:
+            scoped_ids = [chat_id]
+            if include_global:
+                scoped_ids.append("__global__")
+
+            aggregated: list[Any] = []
+            seen_point_ids: set[str] = set()
+            for scoped_id in scoped_ids:
+                response = await self._query_points(
+                    collection_name=collection_name,
+                    query_vector=query_vector,
+                    conditions=[
+                        *base_conditions,
+                        qmodels.FieldCondition(
+                            key="chat_id",
+                            match=qmodels.MatchValue(value=scoped_id),
+                        ),
+                    ],
+                    limit=limit,
+                )
+                for point in response.points:
+                    point_id = str(point.id)
+                    if point_id in seen_point_ids:
+                        continue
+                    seen_point_ids.add(point_id)
+                    aggregated.append(point)
+
+            aggregated.sort(key=lambda point: float(point.score), reverse=True)
+            return [self._to_hit(point) for point in aggregated[:limit]]
+
+        response = await self._query_points(
+            collection_name=collection_name,
+            query_vector=query_vector,
+            conditions=base_conditions,
             limit=limit,
-            with_payload=True,
-            with_vectors=False,
         )
         return [self._to_hit(point) for point in response.points]
 
@@ -198,6 +253,33 @@ class UserVectorStore:
                 field_name="user_id",
                 field_schema=qmodels.PayloadSchemaType.KEYWORD,
             )
+            await self._client.create_payload_index(
+                collection_name=name,
+                field_name="chat_id",
+                field_schema=qmodels.PayloadSchemaType.KEYWORD,
+            )
+            await self._client.create_payload_index(
+                collection_name=name,
+                field_name="session_id",
+                field_schema=qmodels.PayloadSchemaType.KEYWORD,
+            )
+
+    async def _query_points(
+        self,
+        *,
+        collection_name: str,
+        query_vector: list[float],
+        conditions: list[qmodels.FieldCondition],
+        limit: int,
+    ) -> Any:
+        return await self._client.query_points(
+            collection_name=collection_name,
+            query=query_vector,
+            query_filter=qmodels.Filter(must=conditions),
+            limit=limit,
+            with_payload=True,
+            with_vectors=False,
+        )
 
     def _to_hit(self, point: qmodels.ScoredPoint | Any) -> UserMemoryHit:
         payload = point.payload or {}

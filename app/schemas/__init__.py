@@ -10,9 +10,24 @@ from app.schemas.auth_api import (
     SignupRequest,
     VerifyOTPRequest,
 )
-from app.schemas.live_chat import LiveChatRequest, LiveChatResponse
+from app.schemas.chat_api import (
+    ChatCreateRequest,
+    ChatMessageCreateRequest,
+    ChatMessageOut,
+    ChatReplyResponse,
+    ChatSessionOut,
+    ChatUpdateRequest,
+)
+from app.schemas.document_api import (
+    ChatDocumentIngestResponse,
+    ChatDocumentSearchHit,
+    ChatDocumentSearchResponse,
+    ChatDocumentTextUploadRequest,
+)
+from app.schemas.mcp_voice import MCPAgentSetIn, MCPClientEvent, MCPInputAudioIn, MCPInputTextIn, MCPSessionStartIn
 from app.schemas.user_api import UserCreate, UserDeleteOut, UserOut, UserUpdate
 from app.schemas.user_memory import UserDocumentIn, UserHistoryEventIn, UserMemoryHit
+from app.schemas.voice_agent import VoiceAgentProfileOut
 
 __all__ = [
     "SignupRequest",
@@ -23,8 +38,22 @@ __all__ = [
     "AuthTokenResponse",
     "OTPRequestedResponse",
     "LogoutResponse",
-    "LiveChatRequest",
-    "LiveChatResponse",
+    "ChatCreateRequest",
+    "ChatUpdateRequest",
+    "ChatSessionOut",
+    "ChatMessageCreateRequest",
+    "ChatMessageOut",
+    "ChatReplyResponse",
+    "ChatDocumentTextUploadRequest",
+    "ChatDocumentIngestResponse",
+    "ChatDocumentSearchHit",
+    "ChatDocumentSearchResponse",
+    "MCPClientEvent",
+    "MCPSessionStartIn",
+    "MCPAgentSetIn",
+    "MCPInputTextIn",
+    "MCPInputAudioIn",
+    "VoiceAgentProfileOut",
     "UserCreate",
     "UserUpdate",
     "UserOut",

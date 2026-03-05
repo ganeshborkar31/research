@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 class UserDocumentIn(BaseModel):
     tenant_id: str = Field(min_length=1, max_length=64)
     user_id: str = Field(min_length=1, max_length=64)
+    chat_id: str | None = Field(default=None, max_length=64)
     document_id: str = Field(min_length=1, max_length=128)
     content: str = Field(min_length=1, max_length=20000)
     source: str = Field(default="user_document", min_length=1, max_length=64)
@@ -29,4 +30,3 @@ class UserMemoryHit(BaseModel):
     source: str | None = None
     created_at: datetime | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-
