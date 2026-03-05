@@ -1,5 +1,6 @@
 import json
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -41,6 +42,35 @@ class GeminiClient:
         except Exception as exc:
             logger.warning("Gemini request failed, using fallback response: %s", exc)
             return self._fallback_reply(system_prompt=system_prompt, user_message=user_message)
+
+    async def stream_reply(
+        self,
+        *,
+        system_prompt: str,
+        user_message: str,
+        history: list[dict[str, str]] | None = None,
+    ) -> AsyncIterator[str]:
+        if not self.api_key:
+            yield self._fallback_reply(system_prompt=system_prompt, user_message=user_message)
+            return
+
+        payload = self._build_payload(
+            system_prompt=system_prompt,
+            user_message=user_message,
+            history=history or [],
+        )
+        try:
+            emitted = False
+            async for chunk in self._stream_api(payload):
+                emitted = True
+                yield chunk
+            if not emitted:
+                text = await self._call_api(payload)
+                if text:
+                    yield text
+        except Exception as exc:
+            logger.warning("Gemini stream request failed, using fallback response: %s", exc)
+            yield self._fallback_reply(system_prompt=system_prompt, user_message=user_message)
 
     def _build_payload(
         self,
@@ -104,6 +134,78 @@ class GeminiClient:
             system_prompt="",
             user_message=payload["contents"][0]["parts"][0]["text"],
         )
+
+    async def _stream_api(self, payload: dict[str, Any]) -> AsyncIterator[str]:
+        timeout = httpx.Timeout(timeout=self.timeout_seconds * 4, connect=self.timeout_seconds)
+        models_to_try = [self.model, "gemini-2.5-flash", "gemini-2.0-flash"]
+        tried: set[str] = set()
+        last_error: Exception | None = None
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            for model in models_to_try:
+                if model in tried:
+                    continue
+                tried.add(model)
+                url = (
+                    "https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"{model}:streamGenerateContent?alt=sse&key={self.api_key}"
+                )
+
+                try:
+                    async with client.stream(
+                        "POST",
+                        url,
+                        content=json.dumps(payload),
+                        headers={"Content-Type": "application/json"},
+                    ) as response:
+                        response.raise_for_status()
+                        emitted = False
+                        aggregated_text = ""
+
+                        async for line in response.aiter_lines():
+                            if not line:
+                                continue
+                            if not line.startswith("data:"):
+                                continue
+
+                            data = line[len("data:") :].strip()
+                            if not data or data == "[DONE]":
+                                continue
+
+                            try:
+                                event = json.loads(data)
+                            except json.JSONDecodeError:
+                                continue
+
+                            text = self._extract_text(event)
+                            if not text:
+                                continue
+
+                            delta = self._extract_stream_delta(aggregated_text, text)
+                            if not delta:
+                                continue
+
+                            emitted = True
+                            aggregated_text += delta
+                            yield delta
+
+                        if emitted:
+                            return
+                except httpx.HTTPStatusError as exc:
+                    last_error = exc
+                    if exc.response.status_code in (400, 404):
+                        continue
+                    raise
+
+        if last_error:
+            raise last_error
+
+    def _extract_stream_delta(self, previous: str, current: str) -> str:
+        if not previous:
+            return current
+        if current.startswith(previous):
+            return current[len(previous) :]
+        return current
 
     def _extract_text(self, data: dict[str, Any]) -> str | None:
         candidates = data.get("candidates", [])

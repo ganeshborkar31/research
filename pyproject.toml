@@ -10,9 +10,10 @@ dependencies = [
   "httpx",
   "uvicorn",
   "debugpy",
-  "python-multipart",     # form parsing (twilio webhook)
+  "python-multipart",     # form parsing (OAuth2 login form, multipart uploads)
   # AI / RAG
   "langchain",
+  "langgraph",
   "langchain-openai",
   "google-genai",         # gemini sdk
   "qdrant-client",
@@ -30,7 +31,6 @@ dependencies = [
   # Messaging / Cache
   "aio-pika",
   "redis",
-  "twilio",               # voice call integrations
   "pydantic[email]>=2.12.5",
 ]
 
@@ -41,6 +41,7 @@ dependencies = [
 test = [
   "pytest",
   "pytest-asyncio",
+  "websockets",
   "testcontainers[postgresql,redis]",
 
 ]
