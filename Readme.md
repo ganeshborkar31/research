@@ -105,6 +105,28 @@ docker compose run --rm --build migrate alembic revision --autogenerate -m "add 
 - Docs: <http://localhost:8000/docs>
 - Metrics: <http://localhost:8000/metrics>
 
+## SMTP OTP Setup
+
+Use these `.env` variables for real email OTP dispatch:
+
+```env
+SMTP_HOST=smtp.yourprovider.com
+SMTP_PORT=587
+SMTP_USERNAME=your_user
+SMTP_PASSWORD=your_password
+SMTP_FROM_EMAIL=no-reply@yourdomain.com
+SMTP_FROM_NAME=Knowledge AI
+SMTP_STARTTLS=true
+SMTP_USE_SSL=false
+SMTP_REQUIRE_AUTH=true
+SMTP_TIMEOUT_SECONDS=15
+```
+
+Behavior:
+
+- `POST /api/v1/auth/signup` and `POST /api/v1/auth/request-otp` now return `503` if SMTP delivery fails.
+- Mobile OTP dispatch is not configured yet and returns a clear error.
+
 ## Realtime Voice (MCP Phase 1)
 
 - WebSocket endpoint: `ws://localhost:8000/api/v1/live-chat/voice/ws?token=<access_token>`

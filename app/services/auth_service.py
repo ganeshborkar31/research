@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.schemas.auth_api import LoginRequest, RequestOTPRequest, SignupRequest, VerifyOTPRequest
-from app.infra.notifications import send_otp_code
+from app.infra.notifications import OTPDispatchError as InfraOTPDispatchError, send_otp_code
 from app.models.auth import OTPChallenge, RefreshToken
 from app.models.user import User
 from app.services.jwt_service import create_access_token, create_refresh_token, safe_decode_token
@@ -25,6 +25,10 @@ class InvalidCredentialsError(AuthError):
 
 
 class OTPVerificationError(AuthError):
+    pass
+
+
+class OTPDeliveryError(AuthError):
     pass
 
 
@@ -274,15 +278,21 @@ async def _create_and_send_otp(
         metadata_json={},
     )
     db.add(challenge)
+    await db.flush()
+
+    try:
+        await send_otp_code(
+            channel=channel,
+            destination=destination,
+            otp_code=otp_code,
+            purpose=purpose,
+        )
+    except InfraOTPDispatchError as exc:
+        await db.rollback()
+        raise OTPDeliveryError(str(exc)) from exc
+
     await db.commit()
     await db.refresh(challenge)
-
-    await send_otp_code(
-        channel=channel,
-        destination=destination,
-        otp_code=otp_code,
-        purpose=purpose,
-    )
     return OTPDispatchResult(
         expires_at=challenge.expires_at,
         channel=challenge.channel,

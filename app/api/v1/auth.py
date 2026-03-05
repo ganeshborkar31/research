@@ -18,6 +18,7 @@ from app.schemas.auth_api import (
 )
 from app.services.auth_service import (
     AuthError,
+    OTPDeliveryError,
     InvalidCredentialsError,
     OTPVerificationError,
     login,
@@ -37,6 +38,8 @@ router = APIRouter()
 async def signup_user(payload: SignupRequest, db: AsyncSession = Depends(get_db)) -> OTPRequestedResponse:
     try:
         _user, otp_result = await signup(db, payload)
+    except OTPDeliveryError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except InvalidCredentialsError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except AuthError as exc:
@@ -56,6 +59,8 @@ async def request_otp_code(
 ) -> OTPRequestedResponse:
     try:
         otp_result = await request_otp(db, payload)
+    except OTPDeliveryError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except InvalidCredentialsError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except AuthError as exc:
