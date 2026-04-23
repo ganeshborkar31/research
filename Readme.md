@@ -23,6 +23,29 @@ LangChain, PostgreSQL, Qdrant, Redis, RabbitMQ, and observability tools.
 docker compose build
 ```
 
+Database configuration options:
+
+- Local Docker Postgres: keep using `ASYNC_POSTGRES_URL` + `SYNC_POSTGRES_URL`.
+- Cloud Postgres (AWS RDS, Supabase, Neon, etc.): set `DATABASE_URL` only.
+- The app auto-derives async/sync SQLAlchemy URLs from `DATABASE_URL`.
+
+Cloud examples:
+
+```env
+# AWS RDS (PostgreSQL)
+DATABASE_URL=postgresql://db_user:db_pass@your-rds-endpoint:5432/your_db?sslmode=require
+```
+
+```env
+# Supabase (Direct connection)
+DATABASE_URL=postgresql://postgres:db_pass@db.xxxxx.supabase.co:5432/postgres?sslmode=require
+```
+
+```env
+# Supabase (Session pooler)
+DATABASE_URL=postgresql://postgres.xxxxx:db_pass@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require
+```
+
 Why this is needed:
 
 - `.env` provides runtime config for API, DB, and migration containers.
@@ -35,6 +58,12 @@ Why this is needed:
 
 ```bash
 docker compose up -d --build
+```
+
+If you are using cloud DB (RDS/Supabase), you can run only app + infra services:
+
+```bash
+docker compose up -d --build api qdrant redis rabbitmq
 ```
 
 Useful commands:
@@ -104,6 +133,50 @@ docker compose run --rm --build migrate alembic revision --autogenerate -m "add 
 - Ready: <http://localhost:8000/ready>
 - Docs: <http://localhost:8000/docs>
 - Metrics: <http://localhost:8000/metrics>
+
+## Support Agent
+
+- Chat: `POST /api/v1/support/chat`
+- Voice: `POST /api/v1/support/voice`
+- Chat stream: `ws://localhost:8000/api/v1/support/chat/ws?token=<access_token>`
+- Voice stream: `ws://localhost:8000/api/v1/support/voice/ws?token=<access_token>`
+
+Notes:
+
+- Requires a valid access token; `tenant_id` and `user_id` are derived from the JWT.
+- Support chats are stored in the database; clients should send `chat_id` to continue a thread.
+- Do not send `history` in the request; history is loaded from the database.
+- Policies are loaded from `config/support_policies.json` if present.
+- Sample policy file: `config/support_policies.sample.json`.
+- Streaming endpoints use the MCP-style event schema (`input.text`, `input.audio`, `session.start`, `session.stop`).
+- Send `chat_id` as a query param or via `session.start.session_id` to resume a support thread.
+
+## Frontend (Next.js)
+
+The frontend is isolated in `frontend/` and talks to the backend via HTTP + WebSocket.
+
+Quick start:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Optional environment overrides:
+
+```bash
+# Defaults to http://localhost:8000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+
+# If not set, the app derives ws:// or wss:// from NEXT_PUBLIC_API_BASE_URL
+NEXT_PUBLIC_WS_BASE_URL=ws://localhost:8000
+```
+
+Login options:
+
+- Paste a JWT access token in the UI.
+- Or use the built-in login form (`/api/v1/auth/login`) to fetch a token.
 
 ## SMTP OTP Setup
 
@@ -175,6 +248,41 @@ Client message examples:
 ```json
 {"type":"agent.set","agent_id":"interview"}
 ```
+
+## Twilio Voice + SMS Integration
+
+New endpoints (backend):
+
+- Incoming voice webhook: `POST /api/v1/twilio/voice/incoming`
+- Voice turn handler webhook: `POST /api/v1/twilio/voice/respond`
+- Incoming SMS webhook: `POST /api/v1/twilio/sms/incoming`
+- Outbound SMS API (auth required): `POST /api/v1/twilio/sms/send`
+- Outbound call API (auth required): `POST /api/v1/twilio/voice/call`
+
+Required `.env`:
+
+```env
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_PHONE_NUMBER=+15551234567
+```
+
+Optional `.env`:
+
+```env
+# public base URL for Twilio callbacks (recommended in production)
+TWILIO_PUBLIC_BASE_URL=https://your-public-domain.com
+```
+
+Twilio Console webhook setup:
+
+- Voice webhook URL: `https://<your-domain>/api/v1/twilio/voice/incoming`
+- SMS webhook URL: `https://<your-domain>/api/v1/twilio/sms/incoming`
+
+Notes:
+
+- Incoming voice uses TwiML `<Gather>` for interactive turn-by-turn speech.
+- Incoming SMS and voice both use the existing AI voice chat runtime to generate replies.
 
 ```json
 {"type":"input.text","text":"Tell me a quick interview tip"}

@@ -42,6 +42,7 @@ test = [
   "pytest",
   "pytest-asyncio",
   "websockets",
+  "aiosqlite",
   "testcontainers[postgresql,redis]",
 
 ]

@@ -9,6 +9,8 @@ from app.core.config import get_settings
 @lru_cache(maxsize=1)
 def get_engine():
     settings = get_settings()
+    if not settings.async_postgres_url:
+        raise RuntimeError("ASYNC_POSTGRES_URL is not configured.")
     return create_async_engine(
         settings.async_postgres_url,
         echo=False,
