@@ -1,0 +1,1668 @@
+{
+  "info": {
+    "_postman_id": "6f4b1f9c-27d2-4f7c-b7fa-knowledge-ai-rag",
+    "name": "Knowledge AI RAG API",
+    "description": "Postman collection generated from the FastAPI implementation in this repository. REST requests map to registered routes. WebSocket items document ws:// connections and frame protocols. No SSE endpoint is implemented by the backend.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Operations",
+      "item": [
+        {
+          "name": "OpenAPI schema",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/openapi.json",
+            "description": "FastAPI-generated OpenAPI document for the currently running backend."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/docs",
+            "description": "FastAPI Swagger UI HTML route. Open the response in a browser or use this request to verify the documentation route is available."
+          }
+        },
+        {
+          "name": "Swagger OAuth2 redirect",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/docs/oauth2-redirect",
+            "description": "FastAPI Swagger OAuth2 redirect helper route."
+          }
+        },
+        {
+          "name": "ReDoc",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/redoc",
+            "description": "FastAPI ReDoc HTML route."
+          }
+        },
+        {
+          "name": "Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/metrics",
+            "description": "Prometheus metrics exposed by prometheus-fastapi-instrumentator."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/health/",
+            "description": "Returns {\"status\":\"ok\"} when the process is responding."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Readiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/health/ready",
+            "description": "Checks PostgreSQL, Redis, Qdrant, and RabbitMQ. It returns status ready or status error with detail."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Signup - request OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/signup",
+            "description": "Creates a user and sends an OTP. The implementation returns OTP metadata, not the OTP itself.\n\nExpected JSON: status, expires_at, channel, destination.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"username\": \"{{username}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"phone_e164\": null,\n  \"first_name\": \"Postman\",\n  \"last_name\": \"Tester\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Request OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/request-otp",
+            "description": "Requests a one-time password through email or mobile.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"username_or_email\": \"{{username_or_email}}\",\n  \"channel\": \"email\",\n  \"purpose\": \"signup\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/verify-otp",
+            "description": "Verifies an OTP, returns an access token, and sets the refresh_token HttpOnly cookie.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"username_or_email\": \"{{username_or_email}}\",\n  \"channel\": \"email\",\n  \"purpose\": \"signup\",\n  \"otp_code\": \"{{otp_code}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const payload = pm.response.json();",
+                  "pm.test(\"Access token is returned\", function () { pm.expect(payload).to.have.property(\"access_token\").that.is.a(\"string\").and.not.empty; });",
+                  "pm.collectionVariables.set(\"access_token\", payload.access_token);",
+                  "const refreshCookie = pm.response.cookies.get(\"refresh_token\");",
+                  "if (refreshCookie) pm.collectionVariables.set(\"refresh_token\", refreshCookie);",
+                  "try {",
+                  "    const tokenPayload = JSON.parse(atob(payload.access_token.split(\".\")[1].replace(/-/g, \"+\").replace(/_/g, \"/\")));",
+                  "    if (tokenPayload.sub) pm.collectionVariables.set(\"user_id\", String(tokenPayload.sub));",
+                  "} catch (error) {",
+                  "    console.warn(\"Could not decode access token claims:\", error.message);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/login",
+            "description": "Password login. The refresh token is returned as an HttpOnly cookie; the JSON body contains the access token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"username_or_email\": \"{{username_or_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const payload = pm.response.json();",
+                  "pm.test(\"Access token is returned\", function () { pm.expect(payload).to.have.property(\"access_token\").that.is.a(\"string\").and.not.empty; });",
+                  "pm.collectionVariables.set(\"access_token\", payload.access_token);",
+                  "const refreshCookie = pm.response.cookies.get(\"refresh_token\");",
+                  "if (refreshCookie) pm.collectionVariables.set(\"refresh_token\", refreshCookie);",
+                  "try {",
+                  "    const tokenPayload = JSON.parse(atob(payload.access_token.split(\".\")[1].replace(/-/g, \"+\").replace(/_/g, \"/\")));",
+                  "    if (tokenPayload.sub) pm.collectionVariables.set(\"user_id\", String(tokenPayload.sub));",
+                  "} catch (error) {",
+                  "    console.warn(\"Could not decode access token claims:\", error.message);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - OAuth2 form",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/login/form",
+            "description": "OAuth2-compatible form login. The username can be username_or_email, or tenant_id|username_or_email.",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "{{tenant_id}}|{{username_or_email}}",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const payload = pm.response.json();",
+                  "pm.test(\"Access token is returned\", function () { pm.expect(payload).to.have.property(\"access_token\").that.is.a(\"string\").and.not.empty; });",
+                  "pm.collectionVariables.set(\"access_token\", payload.access_token);",
+                  "const refreshCookie = pm.response.cookies.get(\"refresh_token\");",
+                  "if (refreshCookie) pm.collectionVariables.set(\"refresh_token\", refreshCookie);",
+                  "try {",
+                  "    const tokenPayload = JSON.parse(atob(payload.access_token.split(\".\")[1].replace(/-/g, \"+\").replace(/_/g, \"/\")));",
+                  "    if (tokenPayload.sub) pm.collectionVariables.set(\"user_id\", String(tokenPayload.sub));",
+                  "} catch (error) {",
+                  "    console.warn(\"Could not decode access token claims:\", error.message);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/refresh",
+            "description": "Rotates the refresh token and returns a new access token. The server also accepts its refresh_token cookie.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const payload = pm.response.json();",
+                  "pm.test(\"Access token is returned\", function () { pm.expect(payload).to.have.property(\"access_token\").that.is.a(\"string\").and.not.empty; });",
+                  "pm.collectionVariables.set(\"access_token\", payload.access_token);",
+                  "const refreshCookie = pm.response.cookies.get(\"refresh_token\");",
+                  "if (refreshCookie) pm.collectionVariables.set(\"refresh_token\", refreshCookie);",
+                  "try {",
+                  "    const tokenPayload = JSON.parse(atob(payload.access_token.split(\".\")[1].replace(/-/g, \"+\").replace(/_/g, \"/\")));",
+                  "    if (tokenPayload.sub) pm.collectionVariables.set(\"user_id\", String(tokenPayload.sub));",
+                  "} catch (error) {",
+                  "    console.warn(\"Could not decode access token claims:\", error.message);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/auth/logout",
+            "description": "Revokes the supplied refresh token or cookie and clears the refresh cookie.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () { pm.expect(pm.response.code).to.equal(200); });",
+                  "const payload = pm.response.json();",
+                  "pm.test(\"Logout response is valid\", function () { pm.expect(payload.status).to.equal(\"logged_out\"); });",
+                  "pm.collectionVariables.unset(\"access_token\");",
+                  "pm.collectionVariables.unset(\"refresh_token\");"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Create user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/users/",
+            "description": "Creates a user in the authenticated token tenant. tenant_id must match the access token claim.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"username\": \"another.user\",\n  \"email\": \"another.user@example.test\",\n  \"password\": \"{{password}}\",\n  \"external_user_id\": \"external-user-001\",\n  \"first_name\": \"Another\",\n  \"last_name\": \"User\",\n  \"phone_e164\": null,\n  \"department\": \"Support\",\n  \"title\": \"Agent\",\n  \"timezone\": \"UTC\",\n  \"status\": \"active\",\n  \"is_verified\": false,\n  \"personal_data\": {},\n  \"preferences\": {},\n  \"compliance_flags\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});",
+                  "const payload = pm.response.json();",
+                  "pm.test(\"Response contains id\", function () {",
+                  "    pm.expect(payload).to.have.property(\"id\");",
+                  "});",
+                  "if (payload.id) pm.collectionVariables.set(\"user_id\", String(payload.id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/users/?tenant_id={{tenant_id}}&limit=50&offset=0",
+            "description": "Lists users in the authenticated tenant. limit is 1-200 and offset must be non-negative.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/users/{{user_id}}",
+            "description": "Gets a user after tenant ownership validation.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update user",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/users/{{user_id}}",
+            "description": "Partially updates a user. All fields are optional.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Updated\",\n  \"last_name\": \"User\",\n  \"preferences\": {\n    \"postman_test\": true\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete user",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/users/{{user_id}}",
+            "description": "Deletes a user after tenant ownership validation.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Chats and RAG",
+      "item": [
+        {
+          "name": "Create chat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/chats/",
+            "description": "Creates a chat owned by the authenticated user. The response id is saved to the chat_id collection variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Postman RAG test chat\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});",
+                  "const payload = pm.response.json();",
+                  "pm.test(\"Response contains id\", function () {",
+                  "    pm.expect(payload).to.have.property(\"id\");",
+                  "});",
+                  "if (payload.id) pm.collectionVariables.set(\"chat_id\", String(payload.id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List chats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/chats/?limit=50&offset=0",
+            "description": "Lists active chats for the authenticated user.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get chat",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/chats/{{chat_id}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rename chat",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/chats/{{chat_id}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Renamed Postman RAG test chat\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Archive chat",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/api/v1/chats/{{chat_id}}",
+            "description": "Archives the chat and returns HTTP 204 with no response body.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 204\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List chat messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/chats/{{chat_id}}/messages?limit=100&offset=0",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send chat message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/chats/{{chat_id}}/messages",
+            "description": "Sends a message and returns both the user and assistant message records.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Summarize the documents attached to this chat.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ingest document text",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/chats/{{chat_id}}/documents/text",
+            "description": "Ingests text into the chat-scoped vector index. The returned document_id is saved for reference.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"postman-text-document\",\n  \"content\": \"Knowledge AI is a retrieval augmented generation application. This is a test document for chat scoped retrieval.\",\n  \"source\": \"postman_test\",\n  \"metadata\": {\n    \"category\": \"testing\",\n    \"owner\": \"postman\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});",
+                  "const payload = pm.response.json();",
+                  "pm.test(\"Response contains document_id\", function () {",
+                  "    pm.expect(payload).to.have.property(\"document_id\");",
+                  "});",
+                  "if (payload.document_id) pm.collectionVariables.set(\"document_id\", String(payload.document_id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ingest document file",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/api/v1/chats/{{chat_id}}/documents/upload",
+            "description": "Uploads a file as multipart/form-data. Select a local file for the file form field before sending.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "Choose a local text or supported document file in Postman."
+                },
+                {
+                  "key": "source",
+                  "type": "text",
+                  "value": "postman_upload"
+                },
+                {
+                  "key": "document_id",
+                  "type": "text",
+                  "value": "postman-file-document"
+                },
+                {
+                  "key": "metadata_json",
+                  "type": "text",
+                  "value": "{\"category\":\"testing\",\"owner\":\"postman\"}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 201\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});",
+                  "const payload = pm.response.json();",
+                  "pm.test(\"Response contains document_id\", function () {",
+                  "    pm.expect(payload).to.have.property(\"document_id\");",
+                  "});",
+                  "if (payload.document_id) pm.collectionVariables.set(\"document_id\", String(payload.document_id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search chat documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/chats/{{chat_id}}/documents/search?query=What%20is%20Knowledge%20AI%3F&limit=5&include_global=true",
+            "description": "Searches chat-scoped documents and optionally includes global user documents.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Support",
+      "item": [
+        {
+          "name": "Support chat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/support/chat",
+            "description": "Runs the support agent with policy handling and optional knowledge-base retrieval. An omitted or empty chat_id starts a support conversation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chat_id\": \"{{conversation_id}}\",\n  \"message\": \"How do I use the document retrieval feature?\",\n  \"kb_user_id\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});",
+                  "const payload = pm.response.json();",
+                  "pm.test(\"Response contains chat_id\", function () {",
+                  "    pm.expect(payload).to.have.property(\"chat_id\");",
+                  "});",
+                  "if (payload.chat_id) pm.collectionVariables.set(\"conversation_id\", String(payload.chat_id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support voice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/support/voice",
+            "description": "Accepts text or base64 audio. The service requires at least one usable input; return_audio requests synthesized audio when supported.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chat_id\": \"{{conversation_id}}\",\n  \"audio_b64\": null,\n  \"text\": \"Explain how document retrieval works.\",\n  \"mime_type\": \"audio/wav\",\n  \"return_audio\": false,\n  \"kb_user_id\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});",
+                  "const payload = pm.response.json();",
+                  "pm.test(\"Response contains chat_id\", function () {",
+                  "    pm.expect(payload).to.have.property(\"chat_id\");",
+                  "});",
+                  "if (payload.chat_id) pm.collectionVariables.set(\"conversation_id\", String(payload.chat_id));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Live Voice",
+      "item": [
+        {
+          "name": "List voice agents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/live-chat/voice/agents",
+            "description": "Lists configured voice agents.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Twilio",
+      "item": [
+        {
+          "name": "Send outbound SMS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/twilio/sms/send",
+            "description": "Sends an outbound SMS through the configured Twilio account.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{twilio_to}}\",\n  \"message\": \"Postman test message\",\n  \"from_number\": \"{{twilio_from_number}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start outbound call",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/twilio/voice/call",
+            "description": "Starts an outbound Twilio call. The backend builds the TwiML callback URL from twilio_public_base_url or the request URL.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"{{twilio_to}}\",\n  \"welcome_message\": \"Hello from the Knowledge AI Postman test.\",\n  \"from_number\": \"{{twilio_from_number}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test(\"Response is JSON\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\") || \"\").to.include(\"application/json\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Twilio incoming voice callback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/twilio/voice/incoming",
+            "description": "Twilio webhook callback. This route is intentionally unauthenticated and returns application/xml TwiML.",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "CallSid",
+                  "value": "CA-postman-test",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Twilio voice response callback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/twilio/voice/respond?session_id=postman-voice-session",
+            "description": "Twilio webhook callback. SpeechResult or Digits is used as the user input; returns application/xml TwiML.",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "SpeechResult",
+                  "value": "What is Knowledge AI?",
+                  "type": "text"
+                },
+                {
+                  "key": "Digits",
+                  "value": "",
+                  "type": "text"
+                },
+                {
+                  "key": "CallSid",
+                  "value": "CA-postman-test",
+                  "type": "text"
+                },
+                {
+                  "key": "From",
+                  "value": "+15555550100",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Twilio outbound call TwiML - GET",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/twilio/voice/outbound/twiml?session_id=postman-voice-session&welcome_message=Hello%20from%20Postman",
+            "description": "Public Twilio callback endpoint that returns application/xml TwiML."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Twilio outbound call TwiML - POST",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/api/v1/twilio/voice/outbound/twiml?session_id=postman-voice-session&welcome_message=Hello%20from%20Postman",
+            "description": "Same TwiML callback exposed for both GET and POST by the implementation."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Twilio incoming SMS callback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/twilio/sms/incoming",
+            "description": "Twilio SMS webhook callback. Returns application/xml TwiML.",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "Body",
+                  "value": "Where is my order?",
+                  "type": "text"
+                },
+                {
+                  "key": "From",
+                  "value": "+15555550100",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 200\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WebSockets",
+      "item": [
+        {
+          "name": "Chat streaming WebSocket",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{ws_base_url}}/api/v1/chats/{{chat_id}}/ws",
+            "description": "Connect with Authorization: Bearer access token. The chat_id must belong to the authenticated user.\n\nLifecycle:\n1. Send JSON {\"message\":\"...\"}.\n2. Receive {\"type\":\"start\",\"chat_id\":\"...\"}.\n3. Receive one or more {\"type\":\"chunk\",\"content\":\"...\"} messages.\n4. Receive {\"type\":\"done\",\"chat_id\":\"...\"}.\n\nInvalid or empty messages produce {\"type\":\"error\",\"detail\":\"...\"}. The server closes unauthorized connections with code 4401 and missing chats with code 4404.\n\nPostman does not pre-send collection item bodies for WebSocket frames; use the example body as the first outgoing frame.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Summarize the documents attached to this chat.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 101\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([101]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support chat WebSocket",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{ws_base_url}}/api/v1/support/chat/ws?chat_id={{conversation_id}}",
+            "description": "Connect with Authorization: Bearer access token. The optional chat_id query parameter resumes a support session.\n\nLifecycle:\n1. Server sends {\"type\":\"session.started\",\"protocol\":\"support.chat.v1\",\"chat_id\":\"...\"}.\n2. Send {\"type\":\"input.text\",\"text\":\"...\"}.\n3. Server sends response.started, zero or more llm.chunk, and response.done.\n4. Send {\"type\":\"ping\"} for {\"type\":\"pong\"}; send {\"type\":\"session.stop\"} to receive session.stopped and close code 1000.\n\nErrors use {\"type\":\"error\",\"detail\":\"...\"}. Unauthorized connections close with code 4401.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"input.text\",\n  \"text\": \"How do I upload a document?\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 101\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([101]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support voice WebSocket",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{ws_base_url}}/api/v1/support/voice/ws?chat_id={{conversation_id}}",
+            "description": "Connect with Authorization: Bearer access token. This is the support voice protocol.\n\nSupported outgoing events: session.start with optional session_id, input.text with text, input.audio with audio_b64 and mime_type, ping, and session.stop.\n\nText input produces response.started, llm.chunk, optional tts.chunk, and response.done. Audio input first produces stt.final, then the same response sequence. Errors use {\"type\":\"error\",\"detail\":\"...\"}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"input.text\",\n  \"text\": \"Please explain document retrieval.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 101\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([101]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Live voice MCP WebSocket",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": "{{ws_base_url}}/api/v1/live-chat/voice/ws?session_id=postman-voice-session",
+            "description": "Connect with Authorization: Bearer access token. The server immediately sends session.started with protocol mcp.voice.v1, session_id, and default_agent.\n\nSupported outgoing events: session.start with optional session_id and agent_id, agent.set with agent_id, input.text with text, input.audio with audio_b64 and mime_type, ping, and session.stop.\n\nText and audio processing responses are service-defined MCP events. The server sends error messages for invalid payloads and closes unauthorized connections with code 4401.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"input.text\",\n  \"text\": \"Hello voice agent.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP status is 101\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([101]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
