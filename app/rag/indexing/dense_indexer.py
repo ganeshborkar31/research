@@ -1,0 +1,1 @@
+"""Dense vector indexing workflow."""
