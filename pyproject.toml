@@ -26,6 +26,7 @@ dependencies = [
   "prometheus-fastapi-instrumentator",
   # Database
   "asyncpg",              # async driver (app)
+  "sqlalchemy[asyncio]",  # SQLAlchemy async support requires greenlet
   "psycopg[binary]",      # sync driver (alembic)
   "alembic",
   # Messaging / Cache
