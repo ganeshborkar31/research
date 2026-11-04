@@ -33,6 +33,7 @@ dependencies = [
   "aio-pika",
   "redis",
   "pydantic[email]>=2.12.5",
+  "docling[rapidocr]>=2.0",
 ]
 
 # ---------------------------------------

@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     # -------------------------
     redis_url: str
     qdrant_url: str
+    qdrant_api_key: str | None = None
+    qdrant_timeout_seconds: float = 10.0
+    qdrant_batch_size: int = 128
+    qdrant_collection_name: str = "rag_chunks_v1"
+    qdrant_vector_size: int = 1536
     rabbitmq_url: str
 
     # -------------------------

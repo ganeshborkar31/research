@@ -1,1 +1,0 @@
-"""OpenSearch lexical store adapter."""
