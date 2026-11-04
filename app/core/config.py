@@ -88,6 +88,14 @@ class Settings(BaseSettings):
     voice_tts_elevenlabs_output_format: str = "mp3_44100_128"
     openai_api_key: str | None = None
     openai_base_url: str = "https://api.openai.com/v1"
+    embedding_provider: str = "openai"
+    embedding_model: str | None = None
+    embedding_dimensions: int | None = None
+    embedding_batch_size: int = 64
+    embedding_max_retries: int = 3
+    embedding_retry_backoff_seconds: float = 0.25
+    embedding_timeout_seconds: float = 30.0
+    huggingface_api_token: str | None = None
     voice_tts_openai_model: str = "gpt-4o-mini-tts"
     voice_tts_openai_voice: str = "alloy"
     voice_tts_openai_format: str = "mp3"
