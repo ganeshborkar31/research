@@ -1573,6 +1573,7 @@ dependencies = [
     { name = "qdrant-client" },
     { name = "redis" },
     { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "tiktoken" },
     { name = "uvicorn" },
 ]
 
@@ -1612,6 +1613,7 @@ requires-dist = [
     { name = "qdrant-client" },
     { name = "redis" },
     { name = "sqlalchemy", extras = ["asyncio"] },
+    { name = "tiktoken" },
     { name = "testcontainers", extras = ["postgresql", "redis"], marker = "extra == 'test'" },
     { name = "uvicorn" },
     { name = "websockets", marker = "extra == 'test'" },
