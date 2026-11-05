@@ -22,7 +22,7 @@ Knowledge AI is a FastAPI backend and Next.js frontend for a retrieval-augmented
 - Read the relevant implementation and tests before changing behavior. Follow existing patterns and keep changes focused.
 - Preserve API and WebSocket contracts unless the task explicitly calls for a contract change; update schemas, implementation, and tests together when they do change.
 - Keep provider-specific code in `app/infra/` and depend on service ports where the project already defines them.
-- Treat tenant and user identity as security boundaries. Derive trusted identity from authenticated context, validate ownership on reads and writes, and do not log tokens, credentials, or sensitive user content.
+- Treat individual user identity as a security boundary. Derive trusted identity from authenticated context, validate ownership on reads and writes, and do not log tokens, credentials, or sensitive user content.
 - Never read, print, commit, or copy secrets from `.env`. Use placeholders in examples. Do not weaken authentication or authorization to make a test pass.
 - For database schema changes, add a new Alembic migration; do not edit an already applied migration. Check model and migration consistency.
 - Keep integration tests marked `integration`; ordinary tests should not require live external services. Use stubs/fakes for provider behavior where practical.
