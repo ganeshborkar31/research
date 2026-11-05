@@ -9,6 +9,10 @@ class IndexCollectionError(DocumentIndexingError):
     """The existing Qdrant collection is missing or incompatible."""
 
 
+class IndexCollectionConfigurationError(IndexCollectionError):
+    """The configured collection or its dense vector dimensions are incompatible."""
+
+
 class PartialIndexingError(DocumentIndexingError):
     """A batch failed after some points were written; the prior version is retained."""
 

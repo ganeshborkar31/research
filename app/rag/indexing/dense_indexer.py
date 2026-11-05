@@ -11,7 +11,11 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
 
 from app.core.config import get_settings
-from app.rag.indexing.errors import IndexCollectionError, PartialIndexingError
+from app.rag.indexing.errors import (
+    IndexCollectionConfigurationError,
+    IndexCollectionError,
+    PartialIndexingError,
+)
 from app.rag.indexing.models import DocumentIndexScope
 from app.rag.ports.vector_store import VectorRecord
 
@@ -45,6 +49,7 @@ class DenseDocumentIndexer:
     @staticmethod
     def point_id(scope: DocumentIndexScope, chunk_id: str) -> str:
         identity = {
+            "user_id": scope.user_id,
             "knowledge_base_id": scope.knowledge_base_id,
             "document_id": scope.document_id,
             "document_version_id": scope.document_version_id,
@@ -59,7 +64,7 @@ class DenseDocumentIndexer:
     async def validate_collection(self, *, expected_dimensions: int | None = None) -> int:
         try:
             if not await self._client.collection_exists(self.collection_name):
-                raise IndexCollectionError(
+                raise IndexCollectionConfigurationError(
                     f"Qdrant collection {self.collection_name!r} does not exist; indexing will not create it"
                 )
             info = await self._client.get_collection(self.collection_name)
@@ -70,9 +75,11 @@ class DenseDocumentIndexer:
 
         vectors = info.config.params.vectors
         if isinstance(vectors, dict) or not hasattr(vectors, "size"):
-            raise IndexCollectionError("Indexing requires the existing unnamed dense-vector configuration")
+            raise IndexCollectionConfigurationError(
+                "Indexing requires the existing unnamed dense-vector configuration"
+            )
         if expected_dimensions is not None and vectors.size != expected_dimensions:
-            raise IndexCollectionError(
+            raise IndexCollectionConfigurationError(
                 f"Embedding dimension {expected_dimensions} does not match existing collection "
                 f"dimension {vectors.size}"
             )

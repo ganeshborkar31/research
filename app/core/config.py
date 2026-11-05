@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     qdrant_collection_name: str = "rag_chunks_v1"
     qdrant_vector_size: int = 1536
     rabbitmq_url: str
+    rag_source_root: str = "./data/documents"
+    rag_ingestion_max_retries: int = 5
+    rag_ingestion_lease_seconds: int = 900
+    rag_ingestion_dispatch_after_seconds: int = 60
+    rag_ingestion_chunk_size: int = 512
+    rag_ingestion_chunk_overlap: int = 64
 
     # -------------------------
     # SMTP / Notifications

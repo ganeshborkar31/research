@@ -51,6 +51,7 @@ USER appuser
 
 # Copy application code
 COPY app ./app
+COPY workers ./workers
 COPY alembic ./alembic
 COPY alembic.ini ./
 
