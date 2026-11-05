@@ -6,7 +6,7 @@ from typing import Any
 
 @dataclass(frozen=True, slots=True)
 class ChunkReferences:
-    """Ownership and source identifiers carried unchanged into every chunk."""
+    """Individual-user ownership and source identifiers for every chunk."""
 
     document_id: str
     user_id: str

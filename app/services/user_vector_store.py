@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from hashlib import sha256
-from math import sqrt
-from random import Random
+from types import SimpleNamespace
 from typing import Any
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qmodels
 
 from app.core.config import get_settings
+from app.rag.embeddings.user_memory_compat import embed_user_memory_text
 from app.schemas.user_memory import UserDocumentIn, UserHistoryEventIn, UserMemoryHit
 from app.models.user import User
 
@@ -253,10 +253,40 @@ class UserVectorStore:
         conditions: list[qmodels.FieldCondition],
         limit: int,
     ) -> Any:
+        query_filter = qmodels.Filter(
+            must=conditions,
+            # Keep legacy payloads (without index_status) searchable while hiding
+            # incomplete or superseded RAG document versions.
+            must_not=[
+                qmodels.FieldCondition(
+                    key="index_status",
+                    match=qmodels.MatchAny(any=["staging", "superseded"]),
+                )
+            ],
+        )
+        # Qdrant 1.8 exposes /points/search, while recent qdrant-client versions
+        # only expose query_points (the /points/query endpoint added in later
+        # Qdrant releases). Use the generated legacy endpoint when it is available.
+        remote = getattr(self._client, "_client", None)
+        search_api = getattr(getattr(remote, "http", None), "search_api", None)
+        legacy_search = getattr(search_api, "search_points", None)
+        if callable(legacy_search):
+            response = await legacy_search(
+                collection_name=collection_name,
+                search_request=qmodels.SearchRequest(
+                    vector=query_vector,
+                    filter=query_filter,
+                    limit=limit,
+                    with_payload=True,
+                    with_vector=False,
+                ),
+            )
+            return SimpleNamespace(points=response.result)
+
         return await self._client.query_points(
             collection_name=collection_name,
             query=query_vector,
-            query_filter=qmodels.Filter(must=conditions),
+            query_filter=query_filter,
             limit=limit,
             with_payload=True,
             with_vectors=False,
@@ -286,10 +316,4 @@ class UserVectorStore:
         )
 
     def _embed_text(self, text: str) -> list[float]:
-        # Deterministic fallback embedding for local/dev; replace with a production
-        # embedding model provider in enterprise deployments.
-        seed = int.from_bytes(sha256(text.encode("utf-8")).digest()[:8], "big")
-        rand = Random(seed)
-        vector = [rand.uniform(-1.0, 1.0) for _ in range(self._vector_size)]
-        magnitude = sqrt(sum(v * v for v in vector)) or 1.0
-        return [v / magnitude for v in vector]
+        return embed_user_memory_text(text, self._vector_size)
