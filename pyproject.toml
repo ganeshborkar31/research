@@ -31,6 +31,7 @@ dependencies = [
   "alembic",
   # Messaging / Cache
   "aio-pika",
+  "celery>=5.4,<6",
   "redis",
   "pydantic[email]>=2.12.5",
   "docling[rapidocr]>=2.0",
