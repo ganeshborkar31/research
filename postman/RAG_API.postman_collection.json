@@ -152,7 +152,7 @@
             "description": "Creates a user and sends an OTP. The implementation returns OTP metadata, not the OTP itself.\n\nExpected JSON: status, expires_at, channel, destination.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"username\": \"{{username}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"phone_e164\": null,\n  \"first_name\": \"Postman\",\n  \"last_name\": \"Tester\"\n}",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"phone_e164\": null,\n  \"first_name\": \"Postman\",\n  \"last_name\": \"Tester\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -191,7 +191,7 @@
             "description": "Requests a one-time password through email or mobile.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"username_or_email\": \"{{username_or_email}}\",\n  \"channel\": \"email\",\n  \"purpose\": \"signup\"\n}",
+              "raw": "{\n  \"username_or_email\": \"{{username_or_email}}\",\n  \"channel\": \"email\",\n  \"purpose\": \"signup\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -230,7 +230,7 @@
             "description": "Verifies an OTP, returns an access token, and sets the refresh_token HttpOnly cookie.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"username_or_email\": \"{{username_or_email}}\",\n  \"channel\": \"email\",\n  \"purpose\": \"signup\",\n  \"otp_code\": \"{{otp_code}}\"\n}",
+              "raw": "{\n  \"username_or_email\": \"{{username_or_email}}\",\n  \"channel\": \"email\",\n  \"purpose\": \"signup\",\n  \"otp_code\": \"{{otp_code}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -275,7 +275,7 @@
             "description": "Password login. The refresh token is returned as an HttpOnly cookie; the JSON body contains the access token.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"username_or_email\": \"{{username_or_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"username_or_email\": \"{{username_or_email}}\",\n  \"password\": \"{{password}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -317,13 +317,13 @@
               }
             ],
             "url": "{{base_url}}/api/v1/auth/login/form",
-            "description": "OAuth2-compatible form login. The username can be username_or_email, or tenant_id|username_or_email.",
+            "description": "OAuth2-compatible form login. The username can be username_or_email, or username_or_email.",
             "body": {
               "mode": "urlencoded",
               "urlencoded": [
                 {
                   "key": "username",
-                  "value": "{{tenant_id}}|{{username_or_email}}",
+                  "value": "{{username_or_email}}",
                   "type": "text"
                 },
                 {
@@ -456,10 +456,10 @@
               }
             ],
             "url": "{{base_url}}/api/v1/users/",
-            "description": "Creates a user in the authenticated token tenant. tenant_id must match the access token claim.",
+            "description": "Creates a personal user account.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"username\": \"another.user\",\n  \"email\": \"another.user@example.test\",\n  \"password\": \"{{password}}\",\n  \"external_user_id\": \"external-user-001\",\n  \"first_name\": \"Another\",\n  \"last_name\": \"User\",\n  \"phone_e164\": null,\n  \"department\": \"Support\",\n  \"title\": \"Agent\",\n  \"timezone\": \"UTC\",\n  \"status\": \"active\",\n  \"is_verified\": false,\n  \"personal_data\": {},\n  \"preferences\": {},\n  \"compliance_flags\": {}\n}",
+              "raw": "{\n  \"username\": \"another.user\",\n  \"email\": \"another.user@example.test\",\n  \"password\": \"{{password}}\",\n  \"external_user_id\": \"external-user-001\",\n  \"first_name\": \"Another\",\n  \"last_name\": \"User\",\n  \"phone_e164\": null,\n  \"department\": \"Support\",\n  \"title\": \"Agent\",\n  \"timezone\": \"UTC\",\n  \"status\": \"active\",\n  \"is_verified\": false,\n  \"personal_data\": {},\n  \"preferences\": {},\n  \"compliance_flags\": {}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -504,8 +504,8 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{base_url}}/api/v1/users/?tenant_id={{tenant_id}}&limit=50&offset=0",
-            "description": "Lists users in the authenticated tenant. limit is 1-200 and offset must be non-negative.",
+            "url": "{{base_url}}/api/v1/users/?limit=50&offset=0",
+            "description": "Lists user accounts. limit is 1-200 and offset must be non-negative.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -540,7 +540,7 @@
             "method": "GET",
             "header": [],
             "url": "{{base_url}}/api/v1/users/{{user_id}}",
-            "description": "Gets a user after tenant ownership validation.",
+            "description": "Gets a user account.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -624,7 +624,7 @@
             "method": "DELETE",
             "header": [],
             "url": "{{base_url}}/api/v1/users/{{user_id}}",
-            "description": "Deletes a user after tenant ownership validation.",
+            "description": "Deletes a user account.",
             "auth": {
               "type": "bearer",
               "bearer": [

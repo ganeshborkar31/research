@@ -28,7 +28,7 @@ The implemented auth routes are:
 
 For a normal test run:
 
-1. Configure `tenant_id`, `username_or_email`, and `password`.
+1. Configure `username_or_email` and `password`.
 2. Run **Authentication → Login - JSON**. The password must satisfy the backend schema minimum of eight characters, and the account must already be verified.
 3. The test script saves `access_token` as a Postman collection variable. It also reads the `refresh_token` HttpOnly response cookie when Postman exposes it and saves it as a collection variable.
 4. Protected requests use Bearer authentication with `{{access_token}}`.
@@ -47,13 +47,13 @@ The token response body is:
 
 The refresh token is deliberately not returned in the JSON response by the backend.
 
-The OAuth2 form login expects `username` as either `username_or_email` or `tenant_id|username_or_email`, plus `password`.
+The OAuth2 form login expects `username_or_email` and `password`.
 
 ## Recommended API testing sequence
 
 1. **Operations → Health** and **Readiness**.
 2. Authenticate with **Authentication → Login - JSON**.
-3. Create or list a user if the test account has the required tenant permissions.
+3. Use the personal account endpoints with the authenticated user's token.
 4. **Chats and RAG → Create chat**. Its response saves `chat_id`.
 5. **Ingest document text** or **Ingest document file**. The returned `document_id` is saved automatically.
 6. **Search chat documents** to verify vector retrieval.
