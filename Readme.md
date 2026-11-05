@@ -151,32 +151,6 @@ Notes:
 - Streaming endpoints use the MCP-style event schema (`input.text`, `input.audio`, `session.start`, `session.stop`).
 - Send `chat_id` as a query param or via `session.start.session_id` to resume a support thread.
 
-## Frontend (Next.js)
-
-The frontend is isolated in `frontend/` and talks to the backend via HTTP + WebSocket.
-
-Quick start:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Optional environment overrides:
-
-```bash
-# Defaults to http://localhost:8000
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
-
-# If not set, the app derives ws:// or wss:// from NEXT_PUBLIC_API_BASE_URL
-NEXT_PUBLIC_WS_BASE_URL=ws://localhost:8000
-```
-
-Login options:
-
-- Paste a JWT access token in the UI.
-- Or use the built-in login form (`/api/v1/auth/login`) to fetch a token.
 
 ## SMTP OTP Setup
 

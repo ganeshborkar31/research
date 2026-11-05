@@ -4,7 +4,7 @@
 
 ## Current architecture
 
-Knowledge AI is a FastAPI backend and Next.js frontend. SQLAlchemy and Alembic manage application data. Qdrant is the vector store. User authentication uses individual accounts; RAG documents and chat history must be scoped to the authenticated `user_id`.
+Knowledge AI is a FastAPI backend. SQLAlchemy and Alembic manage application data. Qdrant is the vector store. User authentication uses individual accounts; RAG documents and chat history must be scoped to the authenticated `user_id`.
 
 The RAG package owns document loading, normalization, chunking, embeddings, indexing, and retrieval contracts. Provider-specific integrations remain behind interfaces. Qdrant is an existing derived index and must not be replaced or duplicated without an approved migration.
 

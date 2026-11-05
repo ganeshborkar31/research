@@ -4,7 +4,7 @@ Instructions for coding agents working in this repository. Keep this file useful
 
 ## Project overview
 
-Knowledge AI is a FastAPI backend and Next.js frontend for a retrieval-augmented generation platform. The backend uses LangChain/LangGraph, PostgreSQL with Alembic, Qdrant, Redis, RabbitMQ, and optional external LLM, voice, and notification providers. Background workers live in `workers/`; the frontend lives in `frontend/`.
+Knowledge AI is a FastAPI backend for a retrieval-augmented generation platform. It uses LangChain/LangGraph, PostgreSQL with Alembic, Qdrant, Redis, RabbitMQ, and optional external LLM, voice, and notification providers. Background workers live in `workers/`.
 
 ## Repository map
 
@@ -43,8 +43,6 @@ pytest -q -m integration tests/integration
 # Run the backend through Docker Compose
 docker compose up -d --build
 
-# Run the frontend
-cd frontend && npm install && npm run dev
 ```
 
 Use the narrower relevant test or check while iterating. Run broader checks when the task and environment support them. Do not claim a check passed unless it was run and its result was observed.
