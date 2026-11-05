@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 
 class _SupportState(TypedDict, total=False):
-    tenant_id: str
     user_id: str
     message: str
     history: list[dict[str, str]]
@@ -70,7 +69,6 @@ class SupportAgentService:
         self,
         *,
         db: AsyncSession,
-        tenant_id: str,
         user_id: str,
         message: str,
         chat_id: str | None = None,
@@ -78,20 +76,17 @@ class SupportAgentService:
     ) -> SupportChatResponse:
         chat = await self._store.get_or_create_chat(
             db,
-            tenant_id=tenant_id,
             user_id=user_id,
             chat_id=chat_id,
         )
         history_messages = await self._store.list_messages(
             db,
             chat_id=chat.id,
-            tenant_id=tenant_id,
             user_id=user_id,
             limit=30,
         )
         history = [{"role": m.role, "content": m.content} for m in history_messages]
         payload: _SupportState = {
-            "tenant_id": tenant_id,
             "user_id": user_id,
             "message": message,
             "history": history,
@@ -107,14 +102,12 @@ class SupportAgentService:
             assistant_content=reply_text,
         )
         await self._store_history_event(
-            tenant_id=tenant_id,
             user_id=user_id,
             session_id=chat.id,
             message=str(message).strip(),
             role="user",
         )
         await self._store_history_event(
-            tenant_id=tenant_id,
             user_id=user_id,
             session_id=chat.id,
             message=reply_text,
@@ -132,7 +125,6 @@ class SupportAgentService:
         self,
         *,
         db: AsyncSession,
-        tenant_id: str,
         user_id: str,
         message: str,
         chat_id: str | None = None,
@@ -144,21 +136,18 @@ class SupportAgentService:
 
         chat = await self._store.get_or_create_chat(
             db,
-            tenant_id=tenant_id,
             user_id=user_id,
             chat_id=chat_id,
         )
         history_messages = await self._store.list_messages(
             db,
             chat_id=chat.id,
-            tenant_id=tenant_id,
             user_id=user_id,
             limit=30,
         )
         history = [{"role": m.role, "content": m.content} for m in history_messages]
 
         payload: _SupportState = {
-            "tenant_id": tenant_id,
             "user_id": user_id,
             "message": user_content,
             "history": history,
@@ -167,7 +156,7 @@ class SupportAgentService:
             payload["tool_outputs"] = {"kb_user_id": kb_user_id}
 
         policy_state = await self._run_policy_guard(payload)
-        policy = policy_state.get("policy") or resolve_support_policy(tenant_id or "default")
+        policy = policy_state.get("policy") or resolve_support_policy()
         if policy_state.get("policy_blocked"):
             reply_text = str(policy_state.get("reply", "")).strip()
             await self._store.append_messages(
@@ -177,14 +166,12 @@ class SupportAgentService:
                 assistant_content=reply_text,
             )
             await self._store_history_event(
-                tenant_id=tenant_id,
                 user_id=user_id,
                 session_id=chat.id,
                 message=user_content,
                 role="user",
             )
             await self._store_history_event(
-                tenant_id=tenant_id,
                 user_id=user_id,
                 session_id=chat.id,
                 message=reply_text,
@@ -230,14 +217,12 @@ class SupportAgentService:
                 assistant_content=assistant_reply,
             )
             await self._store_history_event(
-                tenant_id=tenant_id,
                 user_id=user_id,
                 session_id=chat.id,
                 message=user_content,
                 role="user",
             )
             await self._store_history_event(
-                tenant_id=tenant_id,
                 user_id=user_id,
                 session_id=chat.id,
                 message=assistant_reply,
@@ -253,8 +238,7 @@ class SupportAgentService:
         )
 
     async def _run_policy_guard(self, state: _SupportState) -> _SupportState:
-        tenant_id = str(state.get("tenant_id", "")).strip()
-        policy = resolve_support_policy(tenant_id or "default")
+        policy = resolve_support_policy()
         message = str(state.get("message", "")).lower()
         blocked_terms = [term.lower() for term in policy.blocked_terms]
         if any(term and term in message for term in blocked_terms):
@@ -266,9 +250,8 @@ class SupportAgentService:
         return {"policy": policy, "policy_blocked": False}
 
     async def _retrieve_context(self, state: _SupportState) -> _SupportState:
-        policy: SupportPolicy = state.get("policy") or resolve_support_policy("default")
+        policy: SupportPolicy = state.get("policy") or resolve_support_policy()
         message = str(state.get("message", "")).strip()
-        tenant_id = str(state.get("tenant_id", "")).strip()
         user_id = str(state.get("user_id", "")).strip()
         tool_outputs = dict(state.get("tool_outputs") or {})
         kb_user_id = tool_outputs.get("kb_user_id") or policy.kb_user_id
@@ -279,7 +262,6 @@ class SupportAgentService:
         async def kb_search(query: str) -> str:
             """Search the support knowledge base for relevant guidance."""
             return await self._build_retrieval_context(
-                tenant_id=tenant_id,
                 user_id=kb_user_id,
                 query=query,
             )
@@ -287,7 +269,6 @@ class SupportAgentService:
         try:
             retrieval_context = await kb_search.ainvoke({"query": message})
         except Exception as exc:
-            logger.warning("Support KB retrieval failed for tenant_id=%s: %s", tenant_id, exc)
             retrieval_context = "No retrieval context available."
 
         tool_outputs["kb_user_id"] = kb_user_id
@@ -295,7 +276,7 @@ class SupportAgentService:
         return {"retrieval_context": retrieval_context, "tool_outputs": tool_outputs}
 
     async def _generate_reply(self, state: _SupportState) -> _SupportState:
-        policy: SupportPolicy = state.get("policy") or resolve_support_policy("default")
+        policy: SupportPolicy = state.get("policy") or resolve_support_policy()
         history = state.get("history", []) or []
         retrieval_context = str(state.get("retrieval_context", "")).strip()
         message = str(state.get("message", "")).strip()
@@ -310,25 +291,18 @@ class SupportAgentService:
     async def _build_retrieval_context(
         self,
         *,
-        tenant_id: str,
         user_id: str,
         query: str,
     ) -> str:
         try:
             doc_hits = await self._vector_store.search_user_documents(
-                tenant_id=tenant_id,
                 user_id=user_id,
                 query=query,
                 include_global=True,
                 limit=3,
             )
         except Exception as exc:
-            logger.warning(
-                "Qdrant retrieval unavailable for tenant_id=%s user_id=%s: %s",
-                tenant_id,
-                user_id,
-                exc,
-            )
+            logger.warning("Support knowledge retrieval failed for user %s: %s", user_id, exc)
             return "No retrieval context available."
 
         snippets = [f"[doc] {hit.content}" for hit in doc_hits if hit.content]
@@ -339,7 +313,6 @@ class SupportAgentService:
     async def _store_history_event(
         self,
         *,
-        tenant_id: str,
         user_id: str,
         session_id: str,
         message: str,
@@ -348,7 +321,6 @@ class SupportAgentService:
         try:
             await self._vector_store.store_history_event(
                 UserHistoryEventIn(
-                    tenant_id=tenant_id,
                     user_id=user_id,
                     session_id=session_id,
                     message=message,
@@ -357,13 +329,7 @@ class SupportAgentService:
                 )
             )
         except Exception as exc:
-            logger.warning(
-                "Failed to index support history in Qdrant for tenant_id=%s user_id=%s session_id=%s: %s",
-                tenant_id,
-                user_id,
-                session_id,
-                exc,
-            )
+            logger.warning("Support history indexing failed for user %s session %s: %s", user_id, session_id, exc)
 
 
 def _build_support_graph(policy_node, retrieval_node, generate_node):

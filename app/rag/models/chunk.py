@@ -9,8 +9,7 @@ class ChunkReferences:
     """Ownership and source identifiers carried unchanged into every chunk."""
 
     document_id: str
-    tenant_id: str
-    organization_id: str | None = None
+    user_id: str
     knowledge_base_id: str | None = None
 
 
@@ -21,8 +20,7 @@ class DocumentChunk:
     token_count: int
     ordinal: int
     document_id: str
-    tenant_id: str
-    organization_id: str | None = None
+    user_id: str
     knowledge_base_id: str | None = None
     heading_path: tuple[str, ...] = ()
     page_numbers: tuple[int, ...] = ()

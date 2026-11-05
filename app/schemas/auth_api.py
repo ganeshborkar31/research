@@ -3,7 +3,6 @@ from pydantic import BaseModel, Field
 
 
 class SignupRequest(BaseModel):
-    tenant_id: str = Field(min_length=1, max_length=36)
     username: str = Field(min_length=3, max_length=120)
     email: str = Field(min_length=5, max_length=255)
     password: str = Field(min_length=8, max_length=128)
@@ -13,20 +12,17 @@ class SignupRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    tenant_id: str = Field(min_length=1, max_length=36)
     username_or_email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=8, max_length=128)
 
 
 class RequestOTPRequest(BaseModel):
-    tenant_id: str = Field(min_length=1, max_length=36)
     username_or_email: str = Field(min_length=3, max_length=255)
     channel: str = Field(default="email", pattern="^(email|mobile)$")
     purpose: str = Field(default="signup", max_length=32)
 
 
 class VerifyOTPRequest(BaseModel):
-    tenant_id: str = Field(min_length=1, max_length=36)
     username_or_email: str = Field(min_length=3, max_length=255)
     channel: str = Field(default="email", pattern="^(email|mobile)$")
     purpose: str = Field(default="signup", max_length=32)

@@ -38,8 +38,8 @@ class StructuralChunker:
 
     def chunk(self, document: NormalizedDocument, references: ChunkReferences) -> list[DocumentChunk]:
         elements = self._validate(document)
-        if not isinstance(references, ChunkReferences) or not references.document_id or not references.tenant_id:
-            raise MalformedDocumentError("document_id and tenant_id references are required")
+        if not isinstance(references, ChunkReferences) or not references.document_id or not references.user_id:
+            raise MalformedDocumentError("document_id and user_id references are required")
 
         headings: list[tuple[int, str, int | None]] = []
         active_headings: tuple[str, ...] = ()
@@ -228,14 +228,14 @@ class StructuralChunker:
     def _make_chunk(content: str, token_count: int, ordinal: int, references: ChunkReferences,
                     heading_path: tuple[str, ...], pages: tuple[int, ...], kinds: tuple[str, ...]) -> DocumentChunk:
         material = json.dumps({
-            "document_id": references.document_id, "tenant_id": references.tenant_id,
-            "organization_id": references.organization_id, "knowledge_base_id": references.knowledge_base_id,
+            "document_id": references.document_id, "user_id": references.user_id,
+            "knowledge_base_id": references.knowledge_base_id,
             "ordinal": ordinal, "content": content,
         }, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return DocumentChunk(
             id=hashlib.sha256(material.encode("utf-8")).hexdigest(), content=content,
             token_count=token_count, ordinal=ordinal, document_id=references.document_id,
-            tenant_id=references.tenant_id, organization_id=references.organization_id,
+            user_id=references.user_id,
             knowledge_base_id=references.knowledge_base_id, heading_path=heading_path,
             page_numbers=pages, metadata={"element_kinds": kinds},
         )

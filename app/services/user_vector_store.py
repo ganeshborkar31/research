@@ -42,10 +42,9 @@ class UserVectorStore:
         vector = self._embed_text(payload.content)
         scoped_chat_id = payload.chat_id or "__global__"
         point = qmodels.PointStruct(
-            id=f"{payload.tenant_id}:{payload.user_id}:{payload.document_id}",
+            id=sha256(f"{payload.user_id}:{payload.document_id}".encode("utf-8")).hexdigest(),
             vector=vector,
             payload={
-                "tenant_id": payload.tenant_id,
                 "user_id": payload.user_id,
                 "chat_id": scoped_chat_id,
                 "record_type": "document",
@@ -63,13 +62,10 @@ class UserVectorStore:
         vector = self._embed_text(payload.message)
         point = qmodels.PointStruct(
             id=sha256(
-                f"{payload.tenant_id}:{payload.user_id}:{payload.session_id}:{payload.role}:{payload.message}".encode(
-                    "utf-8"
-                )
+                f"{payload.user_id}:{payload.session_id}:{payload.role}:{payload.message}".encode("utf-8")
             ).hexdigest(),
             vector=vector,
             payload={
-                "tenant_id": payload.tenant_id,
                 "user_id": payload.user_id,
                 "session_id": payload.session_id,
                 "record_type": "history",
@@ -96,7 +92,6 @@ class UserVectorStore:
         )
         await self.store_user_document(
             UserDocumentIn(
-                tenant_id=user.tenant_id,
                 user_id=user.id,
                 document_id="profile_snapshot",
                 content=profile_text,
@@ -112,7 +107,6 @@ class UserVectorStore:
     async def search_user_documents(
         self,
         *,
-        tenant_id: str,
         user_id: str,
         query: str,
         chat_id: str | None = None,
@@ -121,7 +115,6 @@ class UserVectorStore:
     ) -> list[UserMemoryHit]:
         return await self._search(
             collection_name=self._docs_collection,
-            tenant_id=tenant_id,
             user_id=user_id,
             query=query,
             chat_id=chat_id,
@@ -132,7 +125,6 @@ class UserVectorStore:
     async def search_user_history(
         self,
         *,
-        tenant_id: str,
         user_id: str,
         query: str,
         chat_id: str | None = None,
@@ -140,7 +132,6 @@ class UserVectorStore:
     ) -> list[UserMemoryHit]:
         return await self._search(
             collection_name=self._history_collection,
-            tenant_id=tenant_id,
             user_id=user_id,
             query=query,
             chat_id=chat_id,
@@ -152,7 +143,6 @@ class UserVectorStore:
         self,
         *,
         collection_name: str,
-        tenant_id: str,
         user_id: str,
         query: str,
         chat_id: str | None,
@@ -162,10 +152,6 @@ class UserVectorStore:
         await self._ensure_collections()
         query_vector = self._embed_text(query)
         base_conditions: list[qmodels.FieldCondition] = [
-            qmodels.FieldCondition(
-                key="tenant_id",
-                match=qmodels.MatchValue(value=tenant_id),
-            ),
             qmodels.FieldCondition(
                 key="user_id",
                 match=qmodels.MatchValue(value=user_id),
@@ -242,11 +228,6 @@ class UserVectorStore:
                     size=self._vector_size,
                     distance=qmodels.Distance.COSINE,
                 ),
-            )
-            await self._client.create_payload_index(
-                collection_name=name,
-                field_name="tenant_id",
-                field_schema=qmodels.PayloadSchemaType.KEYWORD,
             )
             await self._client.create_payload_index(
                 collection_name=name,

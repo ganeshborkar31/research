@@ -15,7 +15,6 @@ class ChatSessionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    tenant_id: str
     user_id: str
     title: str
     status: str
@@ -33,7 +32,6 @@ class ChatMessageOut(BaseModel):
 
     id: str
     chat_id: str
-    tenant_id: str
     user_id: str
     role: str
     content: str

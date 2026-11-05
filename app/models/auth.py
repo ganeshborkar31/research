@@ -17,7 +17,6 @@ class RefreshToken(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False)
     token_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -38,7 +37,6 @@ class OTPChallenge(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False)
     channel: Mapped[str] = mapped_column(String(16), nullable=False)  # email | mobile
     purpose: Mapped[str] = mapped_column(String(32), nullable=False)  # signup | login | reset
     destination: Mapped[str] = mapped_column(String(255), nullable=False)

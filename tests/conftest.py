@@ -38,5 +38,5 @@ def auth_headers(monkeypatch):
     from app.services.jwt_service import create_access_token
 
     get_settings.cache_clear()
-    token = create_access_token("test-user-id", "tenant-1").token
+    token = create_access_token("test-user-id").token
     return {"Authorization": f"Bearer {token}"}

@@ -52,11 +52,11 @@ def config(**overrides):
 
 
 def make_chunk(index, text):
-    refs = ChunkReferences("doc-1", "tenant-1", "org-1", "kb-1")
+    refs = ChunkReferences("doc-1", "user-1", "kb-1")
     return DocumentChunk(
         id=f"chunk-{index}", content=text, token_count=1, ordinal=index,
-        document_id=refs.document_id, tenant_id=refs.tenant_id,
-        organization_id=refs.organization_id, knowledge_base_id=refs.knowledge_base_id,
+        document_id=refs.document_id, user_id=refs.user_id,
+        knowledge_base_id=refs.knowledge_base_id,
     )
 
 

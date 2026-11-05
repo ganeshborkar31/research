@@ -17,15 +17,14 @@ class _FakeChatService:
     def __init__(self) -> None:
         self.chat = SimpleNamespace(
             id="chat-1",
-            tenant_id="tenant-1",
             user_id="user-1",
         )
         self.messages: list[str] = []
 
-    async def get_chat(self, db, *, chat_id: str, tenant_id: str, user_id: str):
+    async def get_chat(self, db, *, chat_id: str, user_id: str):
         if chat_id != self.chat.id:
             return None
-        if tenant_id != self.chat.tenant_id or user_id != self.chat.user_id:
+        if user_id != self.chat.user_id:
             return None
         return self.chat
 
@@ -131,7 +130,7 @@ async def test_chat_websocket_streaming_events(monkeypatch):
         else:
             raise RuntimeError("Uvicorn test server failed to start.")
 
-        token = create_access_token("user-1", "tenant-1").token
+        token = create_access_token("user-1").token
         ws_url = f"ws://127.0.0.1:{port}/api/v1/chats/chat-1/ws?token={token}"
 
         async with websockets.connect(ws_url) as ws:

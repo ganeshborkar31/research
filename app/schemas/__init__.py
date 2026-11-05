@@ -25,7 +25,7 @@ from app.schemas.document_api import (
     ChatDocumentTextUploadRequest,
 )
 from app.schemas.mcp_voice import MCPAgentSetIn, MCPClientEvent, MCPInputAudioIn, MCPInputTextIn, MCPSessionStartIn
-from app.schemas.user_api import UserCreate, UserDeleteOut, UserOut, UserUpdate
+from app.schemas.user_api import UserDeleteOut, UserOut, UserUpdate
 from app.schemas.user_memory import UserDocumentIn, UserHistoryEventIn, UserMemoryHit
 from app.schemas.voice_agent import VoiceAgentProfileOut
 from app.schemas.support_agent import (
@@ -60,7 +60,6 @@ __all__ = [
     "MCPInputTextIn",
     "MCPInputAudioIn",
     "VoiceAgentProfileOut",
-    "UserCreate",
     "UserUpdate",
     "UserOut",
     "UserDeleteOut",

@@ -10,7 +10,6 @@ from app.core.config import get_settings
 
 @dataclass(frozen=True)
 class SupportPolicy:
-    tenant_id: str
     business_name: str
     rules: list[str]
     blocked_terms: list[str]
@@ -28,7 +27,6 @@ class SupportPolicy:
 
 
 _DEFAULT_POLICY = SupportPolicy(
-    tenant_id="default",
     business_name="Knowledge AI",
     rules=[
         "Be concise, accurate, and helpful.",
@@ -42,9 +40,9 @@ _DEFAULT_POLICY = SupportPolicy(
 _POLICY_CACHE: dict[str, SupportPolicy] | None = None
 
 
-def resolve_support_policy(tenant_id: str) -> SupportPolicy:
+def resolve_support_policy() -> SupportPolicy:
     policies = _load_policies()
-    return policies.get(tenant_id) or policies.get("default") or _DEFAULT_POLICY
+    return policies.get("default") or _DEFAULT_POLICY
 
 
 def _load_policies() -> dict[str, SupportPolicy]:
@@ -72,11 +70,7 @@ def _load_policies() -> dict[str, SupportPolicy]:
     policies: dict[str, SupportPolicy] = {}
     default_payload = _as_dict(data.get("default"))
     if default_payload:
-        policies["default"] = _parse_policy("default", default_payload)
-    for tenant_id, payload in _as_dict(data.get("tenants")).items():
-        if not isinstance(payload, dict):
-            continue
-        policies[tenant_id] = _parse_policy(tenant_id, payload)
+        policies["default"] = _parse_policy(default_payload)
 
     if "default" not in policies:
         policies["default"] = _DEFAULT_POLICY
@@ -84,7 +78,7 @@ def _load_policies() -> dict[str, SupportPolicy]:
     return policies
 
 
-def _parse_policy(tenant_id: str, payload: dict[str, Any]) -> SupportPolicy:
+def _parse_policy(payload: dict[str, Any]) -> SupportPolicy:
     business_name = str(payload.get("business_name") or _DEFAULT_POLICY.business_name)
     rules = _ensure_list(payload.get("rules")) or _DEFAULT_POLICY.rules
     blocked_terms = _ensure_list(payload.get("blocked_terms")) or []
@@ -94,7 +88,6 @@ def _parse_policy(tenant_id: str, payload: dict[str, Any]) -> SupportPolicy:
     kb_user_id = payload.get("kb_user_id")
     kb_user_id_value = str(kb_user_id).strip() if kb_user_id else None
     return SupportPolicy(
-        tenant_id=tenant_id,
         business_name=business_name,
         rules=rules,
         blocked_terms=blocked_terms,

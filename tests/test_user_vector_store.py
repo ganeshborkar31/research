@@ -58,7 +58,6 @@ async def test_store_user_document_and_search():
 
     await store.store_user_document(
         UserDocumentIn(
-            tenant_id="tenant-1",
             user_id="user-1",
             document_id="doc-1",
             content="My passport and contract details",
@@ -69,13 +68,11 @@ async def test_store_user_document_and_search():
     assert len(client.upserts) == 1
     collection_name, points = client.upserts[0]
     assert collection_name == "user_documents_v1"
-    assert points[0].payload["tenant_id"] == "tenant-1"
     assert points[0].payload["user_id"] == "user-1"
     assert points[0].payload["chat_id"] == "__global__"
     assert points[0].payload["record_type"] == "document"
 
     hits = await store.search_user_documents(
-        tenant_id="tenant-1",
         user_id="user-1",
         query="passport",
         limit=3,
@@ -91,7 +88,6 @@ async def test_search_user_documents_scoped_to_chat_and_global():
     store = UserVectorStore(client=client, vector_size=8)
 
     hits = await store.search_user_documents(
-        tenant_id="tenant-1",
         user_id="user-1",
         chat_id="chat-123",
         include_global=True,

@@ -57,7 +57,6 @@ class SupportVoiceService:
         self,
         *,
         db: AsyncSession,
-        tenant_id: str,
         user_id: str,
         chat_id: str | None,
         audio_b64: str | None,
@@ -87,7 +86,6 @@ class SupportVoiceService:
 
         support_reply: SupportChatResponse = await self._agent.reply(
             db=db,
-            tenant_id=tenant_id,
             user_id=user_id,
             message=message_text,
             chat_id=chat_id,

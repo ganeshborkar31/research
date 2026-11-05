@@ -5,7 +5,6 @@ from pydantic import BaseModel, Field
 
 
 class UserDocumentIn(BaseModel):
-    tenant_id: str = Field(min_length=1, max_length=64)
     user_id: str = Field(min_length=1, max_length=64)
     chat_id: str | None = Field(default=None, max_length=64)
     document_id: str = Field(min_length=1, max_length=128)
@@ -15,7 +14,6 @@ class UserDocumentIn(BaseModel):
 
 
 class UserHistoryEventIn(BaseModel):
-    tenant_id: str = Field(min_length=1, max_length=64)
     user_id: str = Field(min_length=1, max_length=64)
     session_id: str = Field(min_length=1, max_length=128)
     message: str = Field(min_length=1, max_length=20000)

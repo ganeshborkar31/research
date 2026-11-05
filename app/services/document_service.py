@@ -58,7 +58,6 @@ class DocumentService:
     async def ingest_text(
         self,
         *,
-        tenant_id: str,
         user_id: str,
         chat_id: str,
         content: str,
@@ -90,7 +89,6 @@ class DocumentService:
             }
             await self._vector_store.store_user_document(
                 UserDocumentIn(
-                    tenant_id=tenant_id,
                     user_id=user_id,
                     chat_id=chat_id,
                     document_id=chunk_document_id,
@@ -111,7 +109,6 @@ class DocumentService:
     async def ingest_file(
         self,
         *,
-        tenant_id: str,
         user_id: str,
         chat_id: str,
         file_bytes: bytes,
@@ -130,7 +127,6 @@ class DocumentService:
 
         inferred_source = (source or "uploaded_document").strip() or "uploaded_document"
         return await self.ingest_text(
-            tenant_id=tenant_id,
             user_id=user_id,
             chat_id=chat_id,
             content=parsed_text,
@@ -142,7 +138,6 @@ class DocumentService:
     async def search_documents(
         self,
         *,
-        tenant_id: str,
         user_id: str,
         chat_id: str,
         query: str,
@@ -154,7 +149,6 @@ class DocumentService:
             raise ValueError("Query cannot be empty.")
 
         return await self._vector_store.search_user_documents(
-            tenant_id=tenant_id,
             user_id=user_id,
             chat_id=chat_id,
             query=text_query,

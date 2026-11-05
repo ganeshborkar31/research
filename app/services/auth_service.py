@@ -48,8 +48,11 @@ class OTPDispatchResult:
 
 
 async def signup(db: AsyncSession, payload: SignupRequest) -> tuple[User, OTPDispatchResult]:
+    existing_email = await db.execute(select(User.id).where(User.email == payload.email).limit(1))
+    if existing_email.scalar_one_or_none():
+        raise InvalidCredentialsError("An account with this email already exists.")
+
     user = User(
-        tenant_id=payload.tenant_id,
         username=payload.username,
         email=payload.email,
         phone_e164=payload.phone_e164,
@@ -67,7 +70,7 @@ async def signup(db: AsyncSession, payload: SignupRequest) -> tuple[User, OTPDis
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
-        raise InvalidCredentialsError("User already exists for this tenant.") from exc
+        raise InvalidCredentialsError("An account with this username or email already exists.") from exc
 
     await db.refresh(user)
     otp_result = await _create_and_send_otp(
@@ -80,22 +83,11 @@ async def signup(db: AsyncSession, payload: SignupRequest) -> tuple[User, OTPDis
 
 
 async def login(db: AsyncSession, payload: LoginRequest) -> TokenBundle:
-    return await login_with_optional_tenant(
-        db,
-        tenant_id=payload.tenant_id,
-        username_or_email=payload.username_or_email,
-        password=payload.password,
-    )
+    return await _login(db, payload.username_or_email, payload.password)
 
 
-async def login_with_optional_tenant(
-    db: AsyncSession,
-    *,
-    tenant_id: str | None,
-    username_or_email: str,
-    password: str,
-) -> TokenBundle:
-    user = await _find_user_for_login(db, tenant_id, username_or_email)
+async def _login(db: AsyncSession, username_or_email: str, password: str) -> TokenBundle:
+    user = await _find_user_by_identifier(db, username_or_email)
     if not user or not verify_password(password, user.password_hash):
         raise InvalidCredentialsError("Invalid username/email or password.")
 
@@ -106,7 +98,7 @@ async def login_with_optional_tenant(
 
 
 async def request_otp(db: AsyncSession, payload: RequestOTPRequest) -> OTPDispatchResult:
-    user = await _find_user_by_identifier(db, payload.tenant_id, payload.username_or_email)
+    user = await _find_user_by_identifier(db, payload.username_or_email)
     if not user:
         raise InvalidCredentialsError("User not found.")
 
@@ -119,7 +111,7 @@ async def request_otp(db: AsyncSession, payload: RequestOTPRequest) -> OTPDispat
 
 
 async def verify_otp(db: AsyncSession, payload: VerifyOTPRequest) -> TokenBundle:
-    user = await _find_user_by_identifier(db, payload.tenant_id, payload.username_or_email)
+    user = await _find_user_by_identifier(db, payload.username_or_email)
     if not user:
         raise InvalidCredentialsError("User not found.")
 
@@ -130,7 +122,6 @@ async def verify_otp(db: AsyncSession, payload: VerifyOTPRequest) -> TokenBundle
         .where(
             and_(
                 OTPChallenge.user_id == user.id,
-                OTPChallenge.tenant_id == payload.tenant_id,
                 OTPChallenge.channel == payload.channel,
                 OTPChallenge.purpose == payload.purpose,
                 OTPChallenge.destination == destination,
@@ -171,9 +162,8 @@ async def refresh_session(db: AsyncSession, refresh_token: str) -> TokenBundle:
         raise InvalidCredentialsError("Invalid refresh token.")
 
     user_id = payload.get("sub")
-    tenant_id = payload.get("tenant_id")
     jti = payload.get("jti")
-    if not user_id or not tenant_id or not jti:
+    if not user_id or not jti:
         raise InvalidCredentialsError("Invalid refresh token payload.")
 
     now = datetime.now(timezone.utc)
@@ -181,7 +171,6 @@ async def refresh_session(db: AsyncSession, refresh_token: str) -> TokenBundle:
         and_(
             RefreshToken.jti == jti,
             RefreshToken.user_id == user_id,
-            RefreshToken.tenant_id == tenant_id,
             RefreshToken.revoked_at.is_(None),
             RefreshToken.expires_at > now,
         )
@@ -206,15 +195,13 @@ async def revoke_refresh_token(db: AsyncSession, refresh_token: str) -> None:
 
     jti = payload.get("jti")
     user_id = payload.get("sub")
-    tenant_id = payload.get("tenant_id")
-    if not all([jti, user_id, tenant_id]):
+    if not all([jti, user_id]):
         return
 
     query = select(RefreshToken).where(
         and_(
             RefreshToken.jti == jti,
             RefreshToken.user_id == user_id,
-            RefreshToken.tenant_id == tenant_id,
             RefreshToken.revoked_at.is_(None),
         )
     )
@@ -225,35 +212,17 @@ async def revoke_refresh_token(db: AsyncSession, refresh_token: str) -> None:
         await db.commit()
 
 
-async def _find_user_by_identifier(db: AsyncSession, tenant_id: str, identifier: str) -> User | None:
+async def _find_user_by_identifier(db: AsyncSession, identifier: str) -> User | None:
     query = select(User).where(
-        and_(
-            User.tenant_id == tenant_id,
-            or_(User.username == identifier, User.email == identifier),
-        )
-    )
-    result = await db.execute(query)
-    return result.scalar_one_or_none()
-
-
-async def _find_user_for_login(
-    db: AsyncSession,
-    tenant_id: str | None,
-    identifier: str,
-) -> User | None:
-    if tenant_id:
-        return await _find_user_by_identifier(db, tenant_id, identifier)
-
-    query = select(User).where(or_(User.username == identifier, User.email == identifier)).limit(2)
+        or_(User.username == identifier, User.email == identifier)
+    ).limit(2)
     result = await db.execute(query)
     users = list(result.scalars().all())
-    if not users:
-        return None
     if len(users) > 1:
         raise InvalidCredentialsError(
-            "Multiple tenant accounts found. Use 'tenant_id|username_or_email' in form login."
+            "More than one account matches this email. Sign in using your username."
         )
-    return users[0]
+    return users[0] if users else None
 
 
 async def _create_and_send_otp(
@@ -269,7 +238,6 @@ async def _create_and_send_otp(
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.otp_exp_minutes)
     challenge = OTPChallenge(
         user_id=user.id,
-        tenant_id=user.tenant_id,
         channel=channel,
         purpose=purpose,
         destination=destination,
@@ -316,8 +284,8 @@ async def _issue_token_bundle(
     user: User,
     rotated_from_jti: str | None,
 ) -> TokenBundle:
-    access = create_access_token(user.id, user.tenant_id)
-    refresh = create_refresh_token(user.id, user.tenant_id)
+    access = create_access_token(user.id)
+    refresh = create_refresh_token(user.id)
 
     if rotated_from_jti:
         old_result = await db.execute(select(RefreshToken).where(RefreshToken.jti == rotated_from_jti))
@@ -329,7 +297,6 @@ async def _issue_token_bundle(
     refresh_row = RefreshToken(
         jti=refresh.jti,
         user_id=user.id,
-        tenant_id=user.tenant_id,
         token_hash=hash_value(refresh.token),
         expires_at=refresh.expires_at,
     )

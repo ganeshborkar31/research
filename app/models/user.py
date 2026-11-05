@@ -1,7 +1,7 @@
 from uuid import uuid4
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, JSON, String, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, DateTime, Index, JSON, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -10,22 +10,18 @@ from app.db.base import Base
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
-        UniqueConstraint("tenant_id", "username", name="uq_users_tenant_username"),
-        UniqueConstraint(
-            "tenant_id",
-            "external_user_id",
-            name="uq_users_tenant_external_user_id",
-        ),
+        UniqueConstraint("email", name="uq_users_email"),
+        UniqueConstraint("username", name="uq_users_username"),
+        UniqueConstraint("external_user_id", name="uq_users_external_user_id"),
+        Index("ix_users_email", "email"),
         CheckConstraint(
             "status IN ('invited', 'active', 'suspended', 'archived')",
             name="ck_users_status",
         ),
     )
 
-    # Identity and tenancy
+    # Identity
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False)
     external_user_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     # Core profile

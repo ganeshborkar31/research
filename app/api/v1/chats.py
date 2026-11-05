@@ -50,7 +50,6 @@ async def create_chat(
     service = get_chat_service()
     chat = await service.create_chat(
         db,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
         title=payload.title,
     )
@@ -67,7 +66,6 @@ async def list_chats(
     service = get_chat_service()
     chats = await service.list_chats(
         db,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
         limit=limit,
         offset=offset,
@@ -85,7 +83,6 @@ async def get_chat(
     chat = await service.get_chat(
         db,
         chat_id=chat_id,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
     )
     if not chat:
@@ -104,7 +101,6 @@ async def rename_chat(
     chat = await service.get_chat(
         db,
         chat_id=chat_id,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
     )
     if not chat:
@@ -124,7 +120,6 @@ async def delete_chat(
     chat = await service.get_chat(
         db,
         chat_id=chat_id,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
     )
     if not chat:
@@ -144,7 +139,6 @@ async def get_chat_messages(
     chat = await service.get_chat(
         db,
         chat_id=chat_id,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
     )
     if not chat:
@@ -153,7 +147,6 @@ async def get_chat_messages(
     messages = await service.list_messages(
         db,
         chat_id=chat_id,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
         limit=limit,
         offset=offset,
@@ -172,7 +165,6 @@ async def send_chat_message(
     chat = await service.get_chat(
         db,
         chat_id=chat_id,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
     )
     if not chat:
@@ -209,7 +201,6 @@ async def upload_chat_document_text(
     chat = await chat_service.get_chat(
         db,
         chat_id=chat_id,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
     )
     if not chat:
@@ -217,7 +208,6 @@ async def upload_chat_document_text(
 
     try:
         ingest_result = await get_document_service().ingest_text(
-            tenant_id=claims["tenant_id"],
             user_id=claims["sub"],
             chat_id=chat_id,
             content=payload.content,
@@ -256,7 +246,6 @@ async def upload_chat_document_file(
     chat = await chat_service.get_chat(
         db,
         chat_id=chat_id,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
     )
     if not chat:
@@ -281,7 +270,6 @@ async def upload_chat_document_file(
     file_bytes = await file.read()
     try:
         ingest_result = await get_document_service().ingest_file(
-            tenant_id=claims["tenant_id"],
             user_id=claims["sub"],
             chat_id=chat_id,
             file_bytes=file_bytes,
@@ -317,7 +305,6 @@ async def search_chat_documents(
     chat = await chat_service.get_chat(
         db,
         chat_id=chat_id,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
     )
     if not chat:
@@ -325,7 +312,6 @@ async def search_chat_documents(
 
     try:
         hits = await get_document_service().search_documents(
-            tenant_id=claims["tenant_id"],
             user_id=claims["sub"],
             chat_id=chat_id,
             query=query,
@@ -362,7 +348,6 @@ async def chat_stream_websocket(
     chat = await service.get_chat(
         db,
         chat_id=chat_id,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
     )
     if not chat:

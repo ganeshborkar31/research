@@ -13,17 +13,15 @@ class SupportChatStore:
         self,
         db: AsyncSession,
         *,
-        tenant_id: str,
         user_id: str,
         chat_id: str | None,
     ) -> SupportChatSession:
         if chat_id:
-            chat = await self.get_chat(db, chat_id=chat_id, tenant_id=tenant_id, user_id=user_id)
+            chat = await self.get_chat(db, chat_id=chat_id, user_id=user_id)
             if chat:
                 return chat
 
         chat = SupportChatSession(
-            tenant_id=tenant_id,
             user_id=user_id,
             title="Support Chat",
             status="active",
@@ -38,13 +36,11 @@ class SupportChatStore:
         db: AsyncSession,
         *,
         chat_id: str,
-        tenant_id: str,
         user_id: str,
     ) -> SupportChatSession | None:
         query = select(SupportChatSession).where(
             and_(
                 SupportChatSession.id == chat_id,
-                SupportChatSession.tenant_id == tenant_id,
                 SupportChatSession.user_id == user_id,
                 SupportChatSession.status == "active",
             )
@@ -57,7 +53,6 @@ class SupportChatStore:
         db: AsyncSession,
         *,
         chat_id: str,
-        tenant_id: str,
         user_id: str,
         limit: int = 30,
     ) -> list[SupportChatMessage]:
@@ -66,7 +61,6 @@ class SupportChatStore:
             .where(
                 and_(
                     SupportChatMessage.chat_id == chat_id,
-                    SupportChatMessage.tenant_id == tenant_id,
                     SupportChatMessage.user_id == user_id,
                 )
             )
@@ -86,14 +80,12 @@ class SupportChatStore:
     ) -> tuple[SupportChatMessage, SupportChatMessage]:
         user_message = SupportChatMessage(
             chat_id=chat.id,
-            tenant_id=chat.tenant_id,
             user_id=chat.user_id,
             role="user",
             content=user_content,
         )
         assistant_message = SupportChatMessage(
             chat_id=chat.id,
-            tenant_id=chat.tenant_id,
             user_id=chat.user_id,
             role="assistant",
             content=assistant_content,

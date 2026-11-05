@@ -17,7 +17,6 @@ class FakeMemoryStore:
     async def search_user_documents(
         self,
         *,
-        tenant_id: str,
         user_id: str,
         query: str,
         chat_id: str | None = None,
@@ -26,7 +25,6 @@ class FakeMemoryStore:
     ):
         self.search_calls.append(
             {
-                "tenant_id": tenant_id,
                 "user_id": user_id,
                 "query": query,
                 "chat_id": chat_id,
@@ -52,7 +50,6 @@ async def test_ingest_text_chunks_and_stores_chat_scope():
     service = DocumentService(memory_store=fake_store, chunk_size=100, chunk_overlap=20)
 
     result = await service.ingest_text(
-        tenant_id="tenant-1",
         user_id="user-1",
         chat_id="chat-1",
         content=("This is a long policy text with enterprise controls. " * 10).strip(),
@@ -79,8 +76,7 @@ async def test_ingest_file_rejects_pdf_without_parser():
 
     with pytest.raises(ValueError, match="PDF parsing is not enabled"):
         await service.ingest_file(
-            tenant_id="tenant-1",
-            user_id="user-1",
+                user_id="user-1",
             chat_id="chat-1",
             file_bytes=b"%PDF-1.7 binary",
             filename="resume.pdf",
@@ -96,7 +92,6 @@ async def test_search_documents_passes_chat_scope_and_limit():
     service = DocumentService(memory_store=fake_store)
 
     hits = await service.search_documents(
-        tenant_id="tenant-1",
         user_id="user-1",
         chat_id="chat-9",
         query="security policy",

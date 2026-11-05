@@ -13,12 +13,12 @@ from app.services.jwt_service import create_access_token
 
 class FakeChatService:
     def __init__(self) -> None:
-        self.chat = SimpleNamespace(id="chat-1", tenant_id="tenant-1", user_id="user-1")
+        self.chat = SimpleNamespace(id="chat-1", user_id="user-1")
 
-    async def get_chat(self, db, *, chat_id: str, tenant_id: str, user_id: str):
+    async def get_chat(self, db, *, chat_id: str, user_id: str):
         if chat_id != self.chat.id:
             return None
-        if tenant_id != self.chat.tenant_id or user_id != self.chat.user_id:
+        if user_id != self.chat.user_id:
             return None
         return self.chat
 
@@ -83,7 +83,7 @@ async def test_chat_document_text_upload_endpoint(monkeypatch):
     app.include_router(chats_router, prefix="/api/v1/chats")
     app.dependency_overrides[get_db] = override_get_db
 
-    token = create_access_token("user-1", "tenant-1").token
+    token = create_access_token("user-1").token
     headers = {"Authorization": f"Bearer {token}"}
 
     transport = ASGITransport(app=app)
@@ -127,7 +127,7 @@ async def test_chat_document_upload_file_and_search_endpoints(monkeypatch):
     app.include_router(chats_router, prefix="/api/v1/chats")
     app.dependency_overrides[get_db] = override_get_db
 
-    token = create_access_token("user-1", "tenant-1").token
+    token = create_access_token("user-1").token
     headers = {"Authorization": f"Bearer {token}"}
 
     transport = ASGITransport(app=app)

@@ -47,12 +47,10 @@ class ChatService:
         self,
         db: AsyncSession,
         *,
-        tenant_id: str,
         user_id: str,
         title: str | None = None,
     ) -> ChatSession:
         chat = ChatSession(
-            tenant_id=tenant_id,
             user_id=user_id,
             title=(title or "New Chat").strip()[:255] or "New Chat",
             status="active",
@@ -66,7 +64,6 @@ class ChatService:
         self,
         db: AsyncSession,
         *,
-        tenant_id: str,
         user_id: str,
         limit: int = 50,
         offset: int = 0,
@@ -75,7 +72,6 @@ class ChatService:
             select(ChatSession)
             .where(
                 and_(
-                    ChatSession.tenant_id == tenant_id,
                     ChatSession.user_id == user_id,
                     ChatSession.status == "active",
                 )
@@ -92,13 +88,11 @@ class ChatService:
         db: AsyncSession,
         *,
         chat_id: str,
-        tenant_id: str,
         user_id: str,
     ) -> ChatSession | None:
         query = select(ChatSession).where(
             and_(
                 ChatSession.id == chat_id,
-                ChatSession.tenant_id == tenant_id,
                 ChatSession.user_id == user_id,
                 ChatSession.status == "active",
             )
@@ -127,7 +121,6 @@ class ChatService:
         db: AsyncSession,
         *,
         chat_id: str,
-        tenant_id: str,
         user_id: str,
         limit: int = 100,
         offset: int = 0,
@@ -137,7 +130,6 @@ class ChatService:
             .where(
                 and_(
                     ChatMessage.chat_id == chat_id,
-                    ChatMessage.tenant_id == tenant_id,
                     ChatMessage.user_id == user_id,
                 )
             )
@@ -164,7 +156,6 @@ class ChatService:
             .where(
                 and_(
                     ChatMessage.chat_id == chat.id,
-                    ChatMessage.tenant_id == chat.tenant_id,
                     ChatMessage.user_id == chat.user_id,
                 )
             )
@@ -176,7 +167,6 @@ class ChatService:
         history = [{"role": m.role, "content": m.content} for m in history_messages]
 
         retrieval_context = await self._build_retrieval_context(
-            tenant_id=chat.tenant_id,
             user_id=chat.user_id,
             chat_id=chat.id,
             query=user_content,
@@ -190,14 +180,12 @@ class ChatService:
 
         user_message = ChatMessage(
             chat_id=chat.id,
-            tenant_id=chat.tenant_id,
             user_id=chat.user_id,
             role="user",
             content=user_content,
         )
         assistant_message = ChatMessage(
             chat_id=chat.id,
-            tenant_id=chat.tenant_id,
             user_id=chat.user_id,
             role="assistant",
             content=assistant_reply,
@@ -214,14 +202,12 @@ class ChatService:
         await db.refresh(assistant_message)
         await db.refresh(chat)
         await self._store_history_event(
-            tenant_id=chat.tenant_id,
             user_id=chat.user_id,
             session_id=chat.id,
             message=user_content,
             role="user",
         )
         await self._store_history_event(
-            tenant_id=chat.tenant_id,
             user_id=chat.user_id,
             session_id=chat.id,
             message=assistant_reply,
@@ -245,7 +231,6 @@ class ChatService:
             .where(
                 and_(
                     ChatMessage.chat_id == chat.id,
-                    ChatMessage.tenant_id == chat.tenant_id,
                     ChatMessage.user_id == chat.user_id,
                 )
             )
@@ -256,7 +241,6 @@ class ChatService:
         history_messages = list(history_result.scalars().all())
         history = [{"role": m.role, "content": m.content} for m in history_messages]
         retrieval_context = await self._build_retrieval_context(
-            tenant_id=chat.tenant_id,
             user_id=chat.user_id,
             chat_id=chat.id,
             query=user_content,
@@ -275,14 +259,12 @@ class ChatService:
         assistant_reply = "".join(chunks).strip()
         user_message = ChatMessage(
             chat_id=chat.id,
-            tenant_id=chat.tenant_id,
             user_id=chat.user_id,
             role="user",
             content=user_content,
         )
         assistant_message = ChatMessage(
             chat_id=chat.id,
-            tenant_id=chat.tenant_id,
             user_id=chat.user_id,
             role="assistant",
             content=assistant_reply,
@@ -296,14 +278,12 @@ class ChatService:
 
         await db.commit()
         await self._store_history_event(
-            tenant_id=chat.tenant_id,
             user_id=chat.user_id,
             session_id=chat.id,
             message=user_content,
             role="user",
         )
         await self._store_history_event(
-            tenant_id=chat.tenant_id,
             user_id=chat.user_id,
             session_id=chat.id,
             message=assistant_reply,
@@ -313,14 +293,12 @@ class ChatService:
     async def _build_retrieval_context(
         self,
         *,
-        tenant_id: str,
         user_id: str,
         chat_id: str,
         query: str,
     ) -> str:
         try:
             doc_hits = await self._vector_store.search_user_documents(
-                tenant_id=tenant_id,
                 user_id=user_id,
                 query=query,
                 chat_id=chat_id,
@@ -328,19 +306,13 @@ class ChatService:
                 limit=3,
             )
             history_hits = await self._vector_store.search_user_history(
-                tenant_id=tenant_id,
                 user_id=user_id,
                 query=query,
                 chat_id=chat_id,
                 limit=3,
             )
         except Exception as exc:
-            logger.warning(
-                "Qdrant retrieval unavailable for tenant_id=%s user_id=%s: %s",
-                tenant_id,
-                user_id,
-                exc,
-            )
+            logger.warning("Qdrant retrieval unavailable for user_id=%s: %s", user_id, exc)
             return "No retrieval context available."
 
         snippets: list[str] = []
@@ -356,7 +328,6 @@ class ChatService:
     async def _store_history_event(
         self,
         *,
-        tenant_id: str,
         user_id: str,
         session_id: str,
         message: str,
@@ -365,7 +336,6 @@ class ChatService:
         try:
             await self._vector_store.store_history_event(
                 UserHistoryEventIn(
-                    tenant_id=tenant_id,
                     user_id=user_id,
                     session_id=session_id,
                     message=message,
@@ -374,13 +344,7 @@ class ChatService:
                 )
             )
         except Exception as exc:
-            logger.warning(
-                "Failed to index chat history in Qdrant for tenant_id=%s user_id=%s session_id=%s: %s",
-                tenant_id,
-                user_id,
-                session_id,
-                exc,
-            )
+            logger.warning("Failed to index history for user_id=%s session_id=%s: %s", user_id, session_id, exc)
             return
 
 

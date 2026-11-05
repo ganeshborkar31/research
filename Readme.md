@@ -143,7 +143,7 @@ docker compose run --rm --build migrate alembic revision --autogenerate -m "add 
 
 Notes:
 
-- Requires a valid access token; `tenant_id` and `user_id` are derived from the JWT.
+- Requires a valid access token; `user_id` is derived from the JWT.
 - Support chats are stored in the database; clients should send `chat_id` to continue a thread.
 - Do not send `history` in the request; history is loaded from the database.
 - Policies are loaded from `config/support_policies.json` if present.

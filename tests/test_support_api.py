@@ -12,7 +12,6 @@ from app.models.user import User
 from app.models.support_chat import SupportChatMessage, SupportChatSession
 
 
-TENANT_ID = "tenant-test"
 USER_ID = "user-test"
 
 
@@ -48,7 +47,6 @@ async def db_sessionmaker():
             session.add(
                 User(
                     id=USER_ID,
-                    tenant_id=TENANT_ID,
                     username="supportuser",
                     password_hash="x",
                     email="support@example.com",
@@ -75,7 +73,7 @@ async def support_client(db_sessionmaker, monkeypatch):
             yield session
 
     def override_claims():
-        return {"tenant_id": TENANT_ID, "sub": USER_ID}
+        return {"sub": USER_ID}
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_access_claims] = override_claims

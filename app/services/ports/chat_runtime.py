@@ -28,7 +28,6 @@ class UserMemoryPort(Protocol):
     async def search_user_documents(
         self,
         *,
-        tenant_id: str,
         user_id: str,
         query: str,
         chat_id: str | None = None,
@@ -39,7 +38,6 @@ class UserMemoryPort(Protocol):
     async def search_user_history(
         self,
         *,
-        tenant_id: str,
         user_id: str,
         query: str,
         chat_id: str | None = None,

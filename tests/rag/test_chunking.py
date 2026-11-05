@@ -30,7 +30,7 @@ class RecordingTokenizer:
         return " ".join(inverse[token] for token in tokens)
 
 
-REFS = ChunkReferences("doc-1", "tenant-1", "org-1", "kb-1")
+REFS = ChunkReferences("doc-1", "user-1", "kb-1")
 
 
 def make_chunker(size=8, overlap=2):
@@ -42,8 +42,8 @@ def test_chunks_respect_token_limit_and_carry_references():
     chunks = make_chunker(5, 1).chunk(document, REFS)
     assert chunks
     assert all(chunk.token_count <= 5 for chunk in chunks)
-    assert all((chunk.document_id, chunk.tenant_id, chunk.organization_id, chunk.knowledge_base_id) ==
-               ("doc-1", "tenant-1", "org-1", "kb-1") for chunk in chunks)
+    assert all((chunk.document_id, chunk.user_id, chunk.knowledge_base_id) ==
+               ("doc-1", "user-1", "kb-1") for chunk in chunks)
 
 
 def test_overlap_is_retained_between_adjacent_chunks():

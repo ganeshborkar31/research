@@ -14,7 +14,6 @@ class ChatSession(Base):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -50,7 +49,6 @@ class ChatMessage(Base):
         nullable=False,
         index=True,
     )
-    tenant_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)

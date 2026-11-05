@@ -22,7 +22,6 @@ from app.services.auth_service import (
     InvalidCredentialsError,
     OTPVerificationError,
     login,
-    login_with_optional_tenant,
     refresh_session,
     request_otp,
     revoke_refresh_token,
@@ -119,14 +118,11 @@ async def login_user_form(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: AsyncSession = Depends(get_db),
 ) -> AuthTokenResponse:
-    tenant_id, username_or_email = _parse_compound_username(form_data.username)
     try:
-        token_bundle = await login_with_optional_tenant(
-            db,
-            tenant_id=tenant_id,
-            username_or_email=username_or_email,
+        token_bundle = await login(db, LoginRequest(
+            username_or_email=form_data.username,
             password=form_data.password,
-        )
+        ))
     except OTPVerificationError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except InvalidCredentialsError as exc:
@@ -184,27 +180,6 @@ def _resolve_refresh_token(payload: RefreshRequest, request: Request) -> str | N
         return payload.refresh_token
     settings = get_settings()
     return request.cookies.get(settings.refresh_cookie_name)
-
-
-def _parse_compound_username(compound_username: str) -> tuple[str | None, str]:
-    # OAuth2 form has only username/password, so tenant and user are split by "|".
-    value = compound_username.strip()
-    if not value:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username cannot be empty.",
-        )
-    if "|" not in value:
-        return None, value
-    tenant_id, username_or_email = value.split("|", 1)
-    tenant_id = tenant_id.strip() or None
-    username_or_email = username_or_email.strip()
-    if not username_or_email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid form username format. Expected 'tenant_id|username_or_email'.",
-        )
-    return tenant_id, username_or_email
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:

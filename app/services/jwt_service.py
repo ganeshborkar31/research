@@ -21,13 +21,12 @@ class RefreshToken:
     expires_at: datetime
 
 
-def create_access_token(user_id: str, tenant_id: str) -> AccessToken:
+def create_access_token(user_id: str) -> AccessToken:
     settings = get_settings()
     now = datetime.now(timezone.utc)
     expires_delta = timedelta(minutes=settings.access_token_exp_minutes)
     payload = {
         "sub": user_id,
-        "tenant_id": tenant_id,
         "token_type": "access",
         "iat": now,
         "exp": now + expires_delta,
@@ -37,7 +36,7 @@ def create_access_token(user_id: str, tenant_id: str) -> AccessToken:
     return AccessToken(token=token, expires_in_seconds=int(expires_delta.total_seconds()))
 
 
-def create_refresh_token(user_id: str, tenant_id: str) -> RefreshToken:
+def create_refresh_token(user_id: str) -> RefreshToken:
     settings = get_settings()
     now = datetime.now(timezone.utc)
     expires_delta = timedelta(days=settings.refresh_token_exp_days)
@@ -45,7 +44,6 @@ def create_refresh_token(user_id: str, tenant_id: str) -> RefreshToken:
     jti = str(uuid4())
     payload = {
         "sub": user_id,
-        "tenant_id": tenant_id,
         "token_type": "refresh",
         "iat": now,
         "exp": expires_at,

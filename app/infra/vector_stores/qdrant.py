@@ -1,4 +1,4 @@
-"""Qdrant adapter for versioned, tenant-scoped RAG chunks."""
+"""Qdrant adapter for versioned, user-scoped RAG chunks."""
 
 from __future__ import annotations
 
@@ -48,9 +48,9 @@ class QdrantVectorStore:
         await self.close()
 
     @staticmethod
-    def point_id(*, tenant_id: str, document_id: str, document_version_id: str,
+    def point_id(*, user_id: str, document_id: str, document_version_id: str,
                  chunk_id: str) -> str:
-        key = "\0".join((tenant_id, document_id, document_version_id, chunk_id))
+        key = "\0".join((user_id, document_id, document_version_id, chunk_id))
         return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
     async def collection_exists(self, name: str | None = None) -> bool:
@@ -78,7 +78,7 @@ class QdrantVectorStore:
                 collection_name=collection,
                 vectors_config=models.VectorParams(size=size, distance=models.Distance.COSINE),
             )
-            for field in ("tenant_id", "document_id", "document_version_id", "collection_id"):
+            for field in ("user_id", "document_id", "document_version_id", "collection_id"):
                 await self._client.create_payload_index(
                     collection_name=collection, field_name=field,
                     field_schema=models.PayloadSchemaType.KEYWORD,
@@ -105,7 +105,7 @@ class QdrantVectorStore:
             payload = dict(record.payload)
             if collection_id is not None:
                 payload["collection_id"] = collection_id
-            required = ("tenant_id", "document_id", "document_version_id")
+            required = ("user_id", "document_id", "document_version_id")
             if any(not payload.get(key) for key in required):
                 raise ValueError(f"Point payload must include {', '.join(required)}")
             points.append(models.PointStruct(id=record.id, vector=record.vector, payload=payload))
@@ -131,16 +131,16 @@ class QdrantVectorStore:
             raise VectorStoreError("Qdrant point retrieval failed") from exc
 
     @staticmethod
-    def _filter(*, tenant_id: str | None, document_id: str | None,
+    def _filter(*, user_id: str | None, document_id: str | None,
                 document_version_id: str | None, collection_id: str | None) -> models.Filter | None:
         conditions = [models.FieldCondition(key=key, match=models.MatchValue(value=value))
-                      for key, value in (("tenant_id", tenant_id), ("document_id", document_id),
+                      for key, value in (("user_id", user_id), ("document_id", document_id),
                                          ("document_version_id", document_version_id),
                                          ("collection_id", collection_id)) if value is not None]
         return models.Filter(must=conditions) if conditions else None
 
     async def search(self, vector: Sequence[float], *, limit: int = 10,
-                     tenant_id: str | None = None, document_id: str | None = None,
+                     user_id: str | None = None, document_id: str | None = None,
                      document_version_id: str | None = None, collection_id: str | None = None,
                      with_payload: bool = True) -> list[VectorHit]:
         self._validate(VectorRecord("query", list(vector)), self.vector_size)
@@ -149,7 +149,7 @@ class QdrantVectorStore:
         try:
             result = await self._client.query_points(
                 collection_name=self.collection_name, query=list(vector), limit=limit,
-                query_filter=self._filter(tenant_id=tenant_id, document_id=document_id,
+                query_filter=self._filter(user_id=user_id, document_id=document_id,
                                           document_version_id=document_version_id,
                                           collection_id=collection_id),
                 with_payload=with_payload,
@@ -160,7 +160,7 @@ class QdrantVectorStore:
             raise VectorStoreError("Qdrant similarity search failed") from exc
 
     async def delete_points(self, *, point_ids: Iterable[str] | None = None,
-                            tenant_id: str | None = None, document_id: str | None = None,
+                            user_id: str | None = None, document_id: str | None = None,
                             document_version_id: str | None = None,
                             collection_id: str | None = None) -> None:
         ids = list(point_ids or [])
@@ -168,7 +168,7 @@ class QdrantVectorStore:
         if ids:
             selector = models.PointIdsList(points=ids)
         else:
-            point_filter = self._filter(tenant_id=tenant_id, document_id=document_id,
+            point_filter = self._filter(user_id=user_id, document_id=document_id,
                                         document_version_id=document_version_id,
                                         collection_id=collection_id)
             if point_filter is None:

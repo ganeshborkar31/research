@@ -36,7 +36,6 @@ async def support_chat(
     service = get_support_agent_service()
     response = await service.reply(
         db=db,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
         message=payload.message,
         chat_id=payload.chat_id,
@@ -55,7 +54,6 @@ async def support_voice(
     try:
         return await service.handle_voice(
             db=db,
-            tenant_id=claims["tenant_id"],
             user_id=claims["sub"],
             chat_id=payload.chat_id,
             audio_b64=payload.audio_b64,
@@ -89,7 +87,6 @@ async def support_chat_websocket(
     kb_user_id = websocket.query_params.get("kb_user_id")
     chat = await store.get_or_create_chat(
         db,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
         chat_id=chat_id,
     )
@@ -128,7 +125,6 @@ async def support_chat_websocket(
                 if requested_chat_id or chat_id:
                     chat = await store.get_or_create_chat(
                         db,
-                        tenant_id=claims["tenant_id"],
                         user_id=claims["sub"],
                         chat_id=requested_chat_id or chat_id,
                     )
@@ -159,7 +155,6 @@ async def support_chat_websocket(
                 try:
                     stream_result = await service.stream_message(
                         db=db,
-                        tenant_id=claims["tenant_id"],
                         user_id=claims["sub"],
                         message=parsed_text.text,
                         chat_id=chat_id,
@@ -248,7 +243,6 @@ async def support_voice_websocket(
     kb_user_id = websocket.query_params.get("kb_user_id")
     chat = await store.get_or_create_chat(
         db,
-        tenant_id=claims["tenant_id"],
         user_id=claims["sub"],
         chat_id=chat_id,
     )
@@ -287,7 +281,6 @@ async def support_voice_websocket(
                 if requested_chat_id or chat_id:
                     chat = await store.get_or_create_chat(
                         db,
-                        tenant_id=claims["tenant_id"],
                         user_id=claims["sub"],
                         chat_id=requested_chat_id or chat_id,
                     )
@@ -323,7 +316,6 @@ async def support_voice_websocket(
                 try:
                     stream_result = await service.stream_message(
                         db=db,
-                        tenant_id=claims["tenant_id"],
                         user_id=claims["sub"],
                         message=parsed_text.text,
                         chat_id=chat_id,
@@ -405,7 +397,6 @@ async def support_voice_websocket(
                 try:
                     stream_result = await service.stream_message(
                         db=db,
-                        tenant_id=claims["tenant_id"],
                         user_id=claims["sub"],
                         message=user_message,
                         chat_id=chat_id,
