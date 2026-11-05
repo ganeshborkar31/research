@@ -30,7 +30,9 @@ class RecordingTokenizer:
         return " ".join(inverse[token] for token in tokens)
 
 
-REFS = ChunkReferences("doc-1", "user-1", "kb-1")
+REFS = ChunkReferences(
+    "doc-1", "user-1", "kb-1"
+)
 
 
 def make_chunker(size=8, overlap=2):

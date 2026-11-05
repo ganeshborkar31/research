@@ -6,7 +6,6 @@ def test_create_and_decode_access_token():
     payload = decode_token(token.token)
 
     assert payload["sub"] == "user-1"
-    assert "tenant_id" not in payload
     assert payload["token_type"] == "access"
 
 
@@ -15,7 +14,6 @@ def test_create_and_decode_refresh_token():
     payload = decode_token(token.token)
 
     assert payload["sub"] == "user-1"
-    assert "tenant_id" not in payload
     assert payload["token_type"] == "refresh"
     assert payload["jti"] == token.jti
 

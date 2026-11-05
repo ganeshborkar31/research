@@ -105,6 +105,10 @@ async def test_search_user_documents_scoped_to_chat_and_global():
 
     assert "chat-123" in first_values
     assert "__global__" in second_values
+    for query in client.queries:
+        excluded = query["query_filter"].must_not[0]
+        assert excluded.key == "index_status"
+        assert set(excluded.match.any) == {"staging", "superseded"}
 
 
 def test_embedding_is_deterministic():
