@@ -80,6 +80,29 @@ services:
     networks:
       - rag-network
 
+  ingestion-worker:
+    container_name: rag-ingestion-worker
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    volumes:
+      - .:/app
+    command: celery -A workers.celery_app:celery_app worker --beat --loglevel=INFO --concurrency=2
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    restart: always
+    networks:
+      - rag-network
+
   pgadmin:
     container_name: rag-pgadmin
     image: dpage/pgadmin4
