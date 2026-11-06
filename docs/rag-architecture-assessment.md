@@ -18,7 +18,11 @@ The RAG package owns document loading, normalization, chunking, embeddings, inde
 
 ## Retrieval and compatibility
 
-Use the existing Qdrant collection and its configured dense vector. Preserve the embedding compatibility between indexing and query paths. Lexical or hybrid retrieval should only use an existing supported implementation; do not assume lexical search means BM25 or invent sparse vectors without a demonstrated requirement. Do not add another vector database or search service.
+Phase 3 retrieval belongs under `app/rag/retrieval/` and must consume the new ingestion payload and PostgreSQL lifecycle state. PostgreSQL `rag_documents.active_version_id` is authoritative; Qdrant `index_status` is only a secondary guard. Resolve active versions in the authenticated user's and requested knowledge base's scope before searching. The current retrieval modules are placeholders; the older chat/document search in `app/services/` remains experimental and must not be changed as part of the new pipeline.
+
+The new ingestion workflow embeds documents through the shared `EmbeddingService` and writes to `Settings.qdrant_collection_name` (default `rag_chunks_v1`) with the configured embedding dimensions (provider defaults currently imply 1536 for OpenAI). Legacy `UserVectorStore` uses a deterministic hash embedding and defaults to `user_documents_v1` at 256 dimensions. These are different compatibility paths. Do not reuse the legacy embedding function for new document queries. Deployment configuration and the actual existing collection must be checked together; source defaults do not prove live Qdrant configuration. The new ingestion indexer validates an existing unnamed dense vector and never creates a collection.
+
+There is no implemented lexical indexer: `app/rag/indexing/sparse_indexer.py` documents that the configured collection has no sparse vector and stores text in payloads. Do not describe this as BM25, add sparse vectors, or add a search service without a separate supported design decision. The detailed audit and proposed contracts are in [RAG retrieval architecture](rag-retrieval-architecture.md).
 
 ## Ingestion security and operations
 
