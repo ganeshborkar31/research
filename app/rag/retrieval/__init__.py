@@ -13,6 +13,18 @@ from app.rag.retrieval.lexical import (
     LexicalRetrievalError,
     LexicalRetriever,
 )
+from app.rag.retrieval.fusion import FusionStrategy, ResultFusion
+from app.rag.retrieval.hybrid import (
+    HybridRetrievalConfig,
+    HybridRetrievalError,
+    HybridRetriever,
+)
+from app.rag.retrieval.reranking import (
+    CandidateReranker,
+    RerankerRegistry,
+    RerankingConfig,
+    RerankingError,
+)
 
 __all__ = [
     "QueryProcessingConfig",
@@ -24,5 +36,14 @@ __all__ = [
     "LexicalRetrievalConfigurationError",
     "LexicalRetrievalError",
     "LexicalRetriever",
+    "FusionStrategy",
+    "ResultFusion",
+    "HybridRetrievalConfig",
+    "HybridRetrievalError",
+    "HybridRetriever",
+    "CandidateReranker",
+    "RerankerRegistry",
+    "RerankingConfig",
+    "RerankingError",
 ]
 

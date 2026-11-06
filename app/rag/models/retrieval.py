@@ -139,3 +139,11 @@ class RetrievalResult(BaseModel):
     heading_path: tuple[str, ...] = ()
     knowledge_base_id: str
     metadata: dict[str, object] = Field(default_factory=dict)
+    # Hybrid retrieval provenance. `score` remains the strategy score for
+    # single-strategy retrieval and becomes the fused score for hybrid results.
+    dense_score: float | None = None
+    lexical_score: float | None = None
+    dense_rank: int | None = None
+    lexical_rank: int | None = None
+    fused_score: float | None = None
+    rerank_rank: int | None = None
