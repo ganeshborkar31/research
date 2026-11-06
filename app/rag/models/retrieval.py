@@ -37,6 +37,9 @@ class RetrievalRequest(BaseModel):
     top_k: int | None = Field(default=None, ge=1, strict=True)
     score_threshold: float | None = Field(default=None, strict=True)
     strategy: RetrievalStrategyName | None = None
+    rerank: bool = False
+    max_context_chars: int = Field(default=20_000, ge=1, le=200_000, strict=True)
+    max_context_tokens: int | None = Field(default=None, ge=1, le=100_000, strict=True)
 
     @field_validator("query")
     @classmethod
@@ -105,6 +108,9 @@ class ProcessedRetrievalRequest(BaseModel):
     top_k: int = Field(ge=1)
     score_threshold: float | None = None
     strategy: RetrievalStrategyName
+    rerank: bool = False
+    max_context_chars: int = 20_000
+    max_context_tokens: int | None = None
 
 
 class RetrievalQueryContext(ProcessedRetrievalRequest):
@@ -147,3 +153,32 @@ class RetrievalResult(BaseModel):
     lexical_rank: int | None = None
     fused_score: float | None = None
     rerank_rank: int | None = None
+    source_ref: str | None = None
+
+
+class AssembledContextChunk(BaseModel):
+    """A bounded source chunk included in assembled context."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    document_id: str
+    document_version_id: str
+    chunk_id: str
+    content: str
+    score: float
+    page_numbers: tuple[int, ...] = ()
+    heading_path: tuple[str, ...] = ()
+    source_ref: str | None = None
+    metadata: dict[str, object] = Field(default_factory=dict)
+    token_count: int
+
+
+class AssembledContext(BaseModel):
+    """Provider-neutral context and provenance for downstream generation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    chunks: tuple[AssembledContextChunk, ...]
+    text: str
+    char_count: int
+    token_count: int

@@ -95,4 +95,5 @@ class DenseRetriever:
             heading_path=tuple(str(part) for part in heading_path),
             knowledge_base_id=str(payload["knowledge_base_id"]),
             metadata=metadata,
+            source_ref=str(payload["source"]) if payload.get("source") is not None else None,
         )

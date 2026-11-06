@@ -22,6 +22,9 @@ from app.rag.retrieval.query_processor import (
 from app.rag.dependencies import build_embedding_service
 from app.infra.vector_stores.qdrant import QdrantVectorStore
 from app.rag.retrieval.semantic import DenseRetriever
+from app.rag.retrieval.lexical import LexicalRetriever
+from app.rag.retrieval.hybrid import HybridRetriever
+from app.rag.retrieval.service import RetrievalService
 
 
 def build_retrieval_request_preparer(
@@ -50,6 +53,24 @@ def build_dense_retriever(settings: Settings | None = None) -> DenseRetriever:
             vector_size=settings.qdrant_vector_size,
         ),
     )
+
+
+@lru_cache(maxsize=1)
+def _get_retrieval_service() -> RetrievalService:
+    dense = build_dense_retriever()
+    lexical = LexicalRetriever()
+    return RetrievalService(
+        preparer=build_retrieval_request_preparer(),
+        strategies={
+            RetrievalStrategyName.DENSE: dense,
+            RetrievalStrategyName.LEXICAL: lexical,
+            RetrievalStrategyName.HYBRID: HybridRetriever(dense=dense, lexical=lexical),
+        },
+    )
+
+
+def get_retrieval_service() -> RetrievalService:
+    return _get_retrieval_service()
 
 
 @lru_cache(maxsize=1)

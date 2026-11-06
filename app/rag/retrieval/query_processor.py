@@ -99,6 +99,9 @@ class RetrievalQueryProcessor:
                 else self.config.default_score_threshold
             ),
             strategy=parsed.strategy or self.config.default_strategy,
+            rerank=parsed.rerank,
+            max_context_chars=parsed.max_context_chars,
+            max_context_tokens=parsed.max_context_tokens,
         )
 
 

@@ -7,6 +7,7 @@ from app.api.v1.live_chat import router as live_chat_router
 from app.api.v1.support import router as support_router
 from app.api.v1.twilio import router as twilio_router
 from app.api.v1.users import router as users_router
+from app.api.v1.retrieval import router as retrieval_router
 
 
 def include_api_routers(app: FastAPI) -> None:
@@ -44,4 +45,9 @@ def include_api_routers(app: FastAPI) -> None:
         users_router,
         prefix="/api/v1/users",
         tags=["Users"],
+    )
+    app.include_router(
+        retrieval_router,
+        prefix="/api/v1/retrieval",
+        tags=["Retrieval"],
     )
