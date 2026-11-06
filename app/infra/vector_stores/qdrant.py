@@ -11,6 +11,7 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
 
 from app.core.config import get_settings
+from app.rag.models.retrieval import RetrievalQueryContext
 from app.rag.ports.vector_store import VectorHit, VectorRecord
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,10 @@ logger = logging.getLogger(__name__)
 
 class VectorStoreError(RuntimeError):
     """Qdrant operation failed; callers may retry transient failures."""
+
+
+class EmptyRetrievalScope(ValueError):
+    """No authorized active versions exist; callers must return no results."""
 
 
 class QdrantVectorStore:
@@ -40,6 +45,46 @@ class QdrantVectorStore:
     async def close(self) -> None:
         if self._owns_client:
             await self._client.close()
+
+    @staticmethod
+    def build_retrieval_filter(context: RetrievalQueryContext) -> models.Filter:
+        """Build mandatory user/KB/version filters plus validated caller filters.
+
+        An empty active-version allowlist is rejected so it can never become an
+        unfiltered Qdrant request. This only constructs a filter; it does not search.
+        """
+        if not context.active_version_ids:
+            raise EmptyRetrievalScope("No active documents are available in this scope")
+
+        must: list[models.Condition] = [
+            models.FieldCondition(
+                key="user_id", match=models.MatchValue(value=context.user_id)
+            ),
+            models.FieldCondition(
+                key="knowledge_base_id",
+                match=models.MatchValue(value=context.knowledge_base_id),
+            ),
+            models.FieldCondition(
+                key="document_version_id",
+                match=models.MatchAny(any=list(context.active_version_ids)),
+            ),
+            models.FieldCondition(
+                key="index_status", match=models.MatchValue(value="active")
+            ),
+        ]
+        if context.document_ids:
+            must.append(models.FieldCondition(
+                key="document_id", match=models.MatchAny(any=list(context.document_ids))
+            ))
+        for path, value in context.metadata_filters.items():
+            key = f"metadata.{path}"
+            if isinstance(value, tuple):
+                must.append(models.FieldCondition(
+                    key=key, match=models.MatchAny(any=list(value))
+                ))
+            else:
+                must.append(models.FieldCondition(key=key, match=models.MatchValue(value=value)))
+        return models.Filter(must=must)
 
     async def __aenter__(self) -> "QdrantVectorStore":
         return self
