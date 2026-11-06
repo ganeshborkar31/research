@@ -20,6 +20,7 @@ from app.rag.ingestion.workflow import (
     IngestionOwnershipError,
     RagIngestionWorkflow,
     RetryableIngestionError,
+    normalize_document,
 )
 from app.rag.models.document import DocumentElement, NormalizedDocument
 from app.rag.ports.vector_store import VectorRecord
@@ -131,6 +132,28 @@ class FlakyActivationWorkflow(RagIngestionWorkflow):
             self.fail_activation_once = False
             raise RuntimeError("database unavailable after Qdrant activation")
         return super()._activate(*args)
+
+
+def test_normalization_canonicalizes_text_and_preserves_structure():
+    source = NormalizedDocument(
+        "  Intro\r\n\r\nBody  ",
+        (
+            DocumentElement(" SECTION_HEADER ", "  Policy\r", level=1, page_number=1,
+                            metadata={"source": "docling"}),
+            DocumentElement("paragraph", "  Details\r\n here  ", page_number=2),
+        ),
+        {"parser": "docling", "source_name": "policy.pdf"},
+    )
+
+    normalized = normalize_document(source)
+
+    assert normalized.text == "Intro\n\nBody"
+    assert [element.kind for element in normalized.elements] == ["section_header", "paragraph"]
+    assert [element.text for element in normalized.elements] == ["Policy", "Details\n here"]
+    assert normalized.elements[0].level == 1
+    assert normalized.elements[0].page_number == 1
+    assert normalized.elements[0].metadata == {"source": "docling"}
+    assert normalized.metadata == {"parser": "docling", "source_name": "policy.pdf"}
 
 
 @pytest.fixture
