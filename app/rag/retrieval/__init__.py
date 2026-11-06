@@ -8,6 +8,11 @@ from app.rag.retrieval.query_processor import (
     RetrievalRequestPreparer,
     RetrievalScopeResolver,
 )
+from app.rag.retrieval.lexical import (
+    LexicalRetrievalConfigurationError,
+    LexicalRetrievalError,
+    LexicalRetriever,
+)
 
 __all__ = [
     "QueryProcessingConfig",
@@ -16,5 +21,8 @@ __all__ = [
     "RetrievalQueryProcessor",
     "RetrievalRequestPreparer",
     "RetrievalScopeResolver",
+    "LexicalRetrievalConfigurationError",
+    "LexicalRetrievalError",
+    "LexicalRetriever",
 ]
 
