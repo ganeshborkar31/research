@@ -114,3 +114,8 @@ crash.log
 node_modules/
 .next/
 out/
+
+# =========================
+# Celery
+# =========================
+celerybeat-schedule*
