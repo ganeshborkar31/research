@@ -1,6 +1,6 @@
 # Phase 3: Retrieval pipeline architecture
 
-**Status:** query validation and authorization foundation implemented; retrieval strategies remain unimplemented.
+**Status:** query validation, authorization, and dense vector retrieval implemented; lexical, hybrid, reranking, context assembly, and end-to-end orchestration remain unimplemented.
 **Boundary:** the new pipeline under `app/rag/`; the experimental chat/document search remains untouched.
 
 ## 1. Existing component audit
@@ -37,7 +37,7 @@ The new indexing adapter does not create payload indexes. The existing general Q
 
 ### Existing retrieval, API, and application wiring
 
-The query foundation is implemented in `app/rag/retrieval/query_processor.py` and `app/rag/models/retrieval.py`. It validates query/filter inputs, binds trusted user identity, resolves the user's knowledge-base and active document-version scope from PostgreSQL, and provides mandatory Qdrant filter construction. Dense, lexical, hybrid, fusion, reranking, context assembly, and end-to-end strategy orchestration remain unimplemented. `app/rag/ports/reranker.py` still defines no protocol.
+The query foundation is implemented in `app/rag/retrieval/query_processor.py` and `app/rag/models/retrieval.py`. It validates query/filter inputs, binds trusted user identity, resolves the user's knowledge-base and active document-version scope from PostgreSQL, and provides mandatory Qdrant filter construction. Dense retrieval is implemented in `app/rag/retrieval/semantic.py`; lexical, hybrid, fusion, reranking, context assembly, and end-to-end strategy orchestration remain unimplemented. `app/rag/ports/reranker.py` still defines no protocol.
 
 The older experimental retrieval path is in `app/services/user_vector_store.py` and `DocumentService` / `ChatService`. It queries vector similarity using the deterministic hash embedding, supports user and chat/global visibility filters, and has an API route at `GET /api/v1/chats/{chat_id}/documents/search`. The chat service also inserts this old retrieval context into model requests. It does not resolve new PostgreSQL active versions or knowledge-base scope and has a different payload/identity contract. Do not alter it in Phase 3 design implementation.
 
@@ -61,7 +61,8 @@ app/rag/
     reranker.py                    # Optional candidate reranking contract
   retrieval/
     query_processor.py             # Input validation, normalization, ownership and active versions
-    dependencies.py                # FastAPI auth/database dependency wiring
+    semantic.py                    # Dense query embedding and scoped Qdrant retrieval
+    dependencies.py                # FastAPI auth/database and dense strategy wiring
     scope_resolver.py              # Future extraction point if scope resolution grows
     semantic.py                    # Embed query and invoke dense search port
     lexical.py                     # Optional adapter orchestration; disabled by default
@@ -88,7 +89,7 @@ The implemented `RetrievalRequest` requires `query` and `knowledge_base_id`; it 
 | Query processing | Reject blank/oversized input, normalize outer whitespace only, validate limits, preserve original text semantics. No implicit query expansion. | `RetrievalQueryProcessor.process(request, *, authenticated_user_id) -> ProcessedRetrievalRequest` |
 | Ownership and active scope | Require a known user-owned knowledge base, deny requested document IDs outside it, and resolve only active/indexed document versions. | `RetrievalRequestPreparer.prepare(request, *, authenticated_user_id, session) -> RetrievalQueryContext` |
 | Query embedding | Reuse the one shared service/provider and the indexing configuration. | `EmbeddingService.embed_query(text: str) -> list[float]` (already implemented) |
-| Dense retrieval | Future search of the existing collection with dimension validation and mandatory user, knowledge-base, active-version allowlist, and active status filters. Map payloads to candidates. | `DenseRetriever.search(query_vector: Sequence[float], scope: RetrievalQueryContext, *, limit: int) -> Sequence[RetrievalCandidate]` |
+| Dense retrieval | Embed through shared `EmbeddingService`, validate the existing unnamed dense vector dimension, apply mandatory user/knowledge-base/version/status and caller filters, threshold scores, and map payload provenance to results. | `DenseRetriever.retrieve(context: RetrievalQueryContext) -> Sequence[RetrievalResult]` |
 | Lexical retrieval | Optional port for a verified lexical index implementation. A caller cannot activate it based only on payload text. | `LexicalRetriever.search(query: RetrievalQueryContext) -> Sequence[RetrievalCandidate]`; no concrete implementation exists today. |
 | Hybrid fusion | Combine candidate sets from retrievers that actually ran; deduplicate by point ID. Keep fusion algorithm injectable/configurable until lexical scoring is chosen. Rank-based fusion is preferable if score scales differ, but requires product/quality evaluation. | `FusionStrategy.fuse(candidate_lists: Sequence[Sequence[RetrievalCandidate]], *, limit: int) -> Sequence[RetrievalCandidate]` |
 | Optional reranking | Rerank a bounded fused candidate list using query and candidate content; absent means preserve fused order. Provider stays behind a port. | `Reranker.rerank(query: str, candidates: Sequence[RetrievalCandidate], *, limit: int) -> Sequence[RetrievalCandidate]` |
@@ -125,7 +126,7 @@ sequenceDiagram
     end
 ```
 
-The scope allowlist is resolved before Qdrant so an old version cannot leak during the cross-store interval between PostgreSQL activation and Qdrant cleanup. The implemented `QdrantVectorStore.build_retrieval_filter` rejects an empty allowlist and adds user, knowledge-base, version, active-status, document, and metadata conditions. The Qdrant `index_status=active` filter is defense in depth; it is not a replacement for the allowlist. No retrieval call currently executes this filter.
+The scope allowlist is resolved before Qdrant so an old version cannot leak during the cross-store interval between PostgreSQL activation and Qdrant cleanup. `DenseRetriever` uses `QdrantVectorStore.build_retrieval_filter`, which rejects an empty allowlist and adds user, knowledge-base, version, active-status, document, and metadata conditions. It also checks returned payload identity and version fields before producing results. The Qdrant `index_status=active` filter is defense in depth; it is not a replacement for the allowlist.
 
 ## 5. Configuration requirements
 
