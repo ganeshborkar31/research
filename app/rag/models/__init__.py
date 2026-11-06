@@ -5,6 +5,7 @@ from app.rag.models.retrieval import (
     RetrievalCandidate,
     RetrievalQueryContext,
     RetrievalRequest,
+    RetrievalResult,
     RetrievalStrategyName,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "RetrievalCandidate",
     "RetrievalQueryContext",
     "RetrievalRequest",
+    "RetrievalResult",
     "RetrievalStrategyName",
 ]

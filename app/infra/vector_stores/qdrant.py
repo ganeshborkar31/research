@@ -204,6 +204,54 @@ class QdrantVectorStore:
         except Exception as exc:
             raise VectorStoreError("Qdrant similarity search failed") from exc
 
+    async def validate_vector_dimensions(self, expected_dimensions: int) -> None:
+        """Check the existing unnamed dense vector without creating a collection."""
+        if expected_dimensions != self.vector_size:
+            raise ValueError(
+                f"Embedding dimension {expected_dimensions} does not match configured Qdrant dimension {self.vector_size}"
+            )
+        try:
+            if not await self._client.collection_exists(self.collection_name):
+                raise VectorStoreError(
+                    f"Configured Qdrant collection {self.collection_name!r} does not exist"
+                )
+            info = await self._client.get_collection(self.collection_name)
+            vectors = info.config.params.vectors
+            if isinstance(vectors, dict) or not hasattr(vectors, "size"):
+                raise VectorStoreError("Expected the existing unnamed dense-vector configuration")
+            if vectors.size != expected_dimensions:
+                raise VectorStoreError(
+                    f"Qdrant collection dimension {vectors.size} does not match embedding dimension {expected_dimensions}"
+                )
+        except VectorStoreError:
+            raise
+        except Exception as exc:
+            raise VectorStoreError("Unable to validate Qdrant vector configuration") from exc
+
+    async def search_filtered(
+        self, vector: Sequence[float], *, limit: int, query_filter: models.Filter
+    ) -> list[VectorHit]:
+        self._validate(VectorRecord("query", list(vector)), self.vector_size)
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        if not query_filter.must:
+            raise ValueError("Dense retrieval requires a non-empty restrictive filter")
+        try:
+            result = await self._client.query_points(
+                collection_name=self.collection_name,
+                query=list(vector),
+                limit=limit,
+                query_filter=query_filter,
+                with_payload=True,
+                with_vectors=False,
+            )
+            return [
+                VectorHit(id=str(point.id), score=float(point.score), payload=point.payload or {})
+                for point in result.points
+            ]
+        except Exception as exc:
+            raise VectorStoreError("Qdrant dense retrieval failed") from exc
+
     async def delete_points(self, *, point_ids: Iterable[str] | None = None,
                             user_id: str | None = None, document_id: str | None = None,
                             document_version_id: str | None = None,

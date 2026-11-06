@@ -19,6 +19,9 @@ from app.rag.retrieval.query_processor import (
     RetrievalQueryProcessor,
     RetrievalRequestPreparer,
 )
+from app.rag.dependencies import build_embedding_service
+from app.infra.vector_stores.qdrant import QdrantVectorStore
+from app.rag.retrieval.semantic import DenseRetriever
 
 
 def build_retrieval_request_preparer(
@@ -34,6 +37,18 @@ def build_retrieval_request_preparer(
                 default_strategy=RetrievalStrategyName(settings.rag_retrieval_default_strategy),
             )
         )
+    )
+
+
+def build_dense_retriever(settings: Settings | None = None) -> DenseRetriever:
+    """Wire the shared embedding factory to the existing configured Qdrant store."""
+    settings = settings or get_settings()
+    return DenseRetriever(
+        embeddings=build_embedding_service(settings),
+        vector_store=QdrantVectorStore(
+            collection_name=settings.qdrant_collection_name,
+            vector_size=settings.qdrant_vector_size,
+        ),
     )
 
 

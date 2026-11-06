@@ -123,3 +123,19 @@ class RetrievalCandidate(BaseModel):
     score: float
     payload: dict[str, object] = Field(default_factory=dict)
     strategy: RetrievalStrategyName
+
+
+class RetrievalResult(BaseModel):
+    """Public dense result preserving document and chunk provenance."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    document_id: str
+    document_version_id: str
+    chunk_id: str
+    content: str
+    score: float
+    page_numbers: tuple[int, ...] = ()
+    heading_path: tuple[str, ...] = ()
+    knowledge_base_id: str
+    metadata: dict[str, object] = Field(default_factory=dict)
