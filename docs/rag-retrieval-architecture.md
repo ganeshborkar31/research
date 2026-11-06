@@ -1,6 +1,6 @@
 # Phase 3: Retrieval pipeline architecture
 
-**Status:** design and code audit only. Retrieval is not implemented by this document.
+**Status:** query validation and authorization foundation implemented; retrieval strategies remain unimplemented.
 **Boundary:** the new pipeline under `app/rag/`; the experimental chat/document search remains untouched.
 
 ## 1. Existing component audit
@@ -37,7 +37,7 @@ The new indexing adapter does not create payload indexes. The existing general Q
 
 ### Existing retrieval, API, and application wiring
 
-All modules currently in `app/rag/retrieval/` (`query_processor`, `semantic`, `lexical`, `fusion`, `hybrid`, `reranking`, `context_builder`, and `service`) contain only module docstrings. `app/rag/models/retrieval.py` is also an empty module docstring, and `app/rag/ports/reranker.py` defines no protocol.
+The query foundation is implemented in `app/rag/retrieval/query_processor.py` and `app/rag/models/retrieval.py`. It validates query/filter inputs, binds trusted user identity, resolves the user's knowledge-base and active document-version scope from PostgreSQL, and provides mandatory Qdrant filter construction. Dense, lexical, hybrid, fusion, reranking, context assembly, and end-to-end strategy orchestration remain unimplemented. `app/rag/ports/reranker.py` still defines no protocol.
 
 The older experimental retrieval path is in `app/services/user_vector_store.py` and `DocumentService` / `ChatService`. It queries vector similarity using the deterministic hash embedding, supports user and chat/global visibility filters, and has an API route at `GET /api/v1/chats/{chat_id}/documents/search`. The chat service also inserts this old retrieval context into model requests. It does not resolve new PostgreSQL active versions or knowledge-base scope and has a different payload/identity contract. Do not alter it in Phase 3 design implementation.
 
@@ -53,15 +53,16 @@ Keep orchestration and provider-neutral models in `app/rag/retrieval/`; keep Qdr
 
 ```text
 app/rag/
-  models/retrieval.py              # Query, scope, candidate, result, context types
+  models/retrieval.py              # Request, authorized query context, candidate types
   ports/
     embedding_provider.py          # Existing shared provider contract
     vector_store.py                # Extend with scoped dense query contract
     lexical_store.py               # Future optional lexical-search contract
     reranker.py                    # Optional candidate reranking contract
   retrieval/
-    query_processor.py             # Input validation and normalization
-    scope_resolver.py              # PostgreSQL active-version allowlist
+    query_processor.py             # Input validation, normalization, ownership and active versions
+    dependencies.py                # FastAPI auth/database dependency wiring
+    scope_resolver.py              # Future extraction point if scope resolution grows
     semantic.py                    # Embed query and invoke dense search port
     lexical.py                     # Optional adapter orchestration; disabled by default
     fusion.py                      # Rank/score combination over actual candidates
@@ -74,54 +75,26 @@ app/infra/vector_stores/qdrant.py  # Qdrant scoped dense-search implementation
 tests/rag/test_retrieval_*.py      # Unit contract and orchestration tests
 ```
 
-`lexical_store.py` is a proposed port location, not a claim that such a store exists. Keep lexical retrieval disabled until a concrete implementation can use the existing approved infrastructure and tests establish its behavior. Do not add a search engine, sparse vectors, or a new collection as part of this design.
+`lexical_store.py` is a proposed port location, not a claim that such a store exists. `QdrantVectorStore.build_retrieval_filter` now constructs mandatory ownership/version/status filters; it does not execute a search. Keep lexical retrieval disabled until a concrete implementation can use the existing approved infrastructure and tests establish its behavior. Do not add a search engine, sparse vectors, or a new collection as part of this design.
 
 ## 3. Responsibilities and interface definitions
 
-The following Python-like signatures define boundaries, not implementation code. Types are immutable domain objects in `app/rag/models/retrieval.py` unless noted.
+The implemented request and query context types live in `app/rag/models/retrieval.py`. Strategy signatures below remain design contracts, not search implementations.
 
-```python
-@dataclass(frozen=True)
-class RetrievalScope:
-    user_id: str                     # server-derived authenticated identity
-    knowledge_base_id: str
-    document_ids: tuple[str, ...] = ()  # optional caller filter, ownership checked
-    active_version_ids: tuple[str, ...] = ()  # populated only by scope resolver
-
-@dataclass(frozen=True)
-class RetrievalQuery:
-    text: str
-    scope: RetrievalScope
-    candidate_limit: int
-    include_metadata: bool = True
-
-@dataclass(frozen=True)
-class RetrievalCandidate:
-    point_id: str
-    content: str
-    score: float
-    payload: Mapping[str, object]
-    source_rank: int | None = None
-    source: str = "dense"
-
-@dataclass(frozen=True)
-class RetrievedContext:
-    query: str
-    candidates: tuple[RetrievalCandidate, ...]
-    text: str
-```
+The implemented `RetrievalRequest` requires `query` and `knowledge_base_id`; it accepts optional `document_ids`, `metadata_filters`, `top_k`, `score_threshold`, and `strategy`. It forbids extra fields, including `user_id`. `RetrievalQueryContext` adds the server-derived `user_id` and the PostgreSQL-resolved `active_version_ids` for downstream strategies. `RetrievalCandidate` is the provider-neutral future result type.
 
 | Interface | Responsibility | Proposed contract |
 |---|---|---|
-| Query processing | Reject blank/oversized input, normalize whitespace conservatively, validate limits, preserve original text for display. No implicit query expansion. | `QueryProcessor.process(text: str, scope: RetrievalScope, *, candidate_limit: int) -> RetrievalQuery` |
+| Query processing | Reject blank/oversized input, normalize outer whitespace only, validate limits, preserve original text semantics. No implicit query expansion. | `RetrievalQueryProcessor.process(request, *, authenticated_user_id) -> ProcessedRetrievalRequest` |
+| Ownership and active scope | Require a known user-owned knowledge base, deny requested document IDs outside it, and resolve only active/indexed document versions. | `RetrievalRequestPreparer.prepare(request, *, authenticated_user_id, session) -> RetrievalQueryContext` |
 | Query embedding | Reuse the one shared service/provider and the indexing configuration. | `EmbeddingService.embed_query(text: str) -> list[float]` (already implemented) |
-| Dense retrieval | Search the existing collection with dimension validation and mandatory user, knowledge-base, active-version allowlist, and active status filters. Map payloads to candidates. | `DenseRetriever.search(query_vector: Sequence[float], scope: RetrievalScope, *, limit: int) -> Sequence[RetrievalCandidate]` |
-| Lexical retrieval | Optional port for a verified lexical index implementation. A caller cannot activate it based only on payload text. | `LexicalRetriever.search(query: RetrievalQuery) -> Sequence[RetrievalCandidate]`; no concrete implementation exists today. |
+| Dense retrieval | Future search of the existing collection with dimension validation and mandatory user, knowledge-base, active-version allowlist, and active status filters. Map payloads to candidates. | `DenseRetriever.search(query_vector: Sequence[float], scope: RetrievalQueryContext, *, limit: int) -> Sequence[RetrievalCandidate]` |
+| Lexical retrieval | Optional port for a verified lexical index implementation. A caller cannot activate it based only on payload text. | `LexicalRetriever.search(query: RetrievalQueryContext) -> Sequence[RetrievalCandidate]`; no concrete implementation exists today. |
 | Hybrid fusion | Combine candidate sets from retrievers that actually ran; deduplicate by point ID. Keep fusion algorithm injectable/configurable until lexical scoring is chosen. Rank-based fusion is preferable if score scales differ, but requires product/quality evaluation. | `FusionStrategy.fuse(candidate_lists: Sequence[Sequence[RetrievalCandidate]], *, limit: int) -> Sequence[RetrievalCandidate]` |
 | Optional reranking | Rerank a bounded fused candidate list using query and candidate content; absent means preserve fused order. Provider stays behind a port. | `Reranker.rerank(query: str, candidates: Sequence[RetrievalCandidate], *, limit: int) -> Sequence[RetrievalCandidate]` |
-| Context assembly | Deduplicate, bound total content/token budget, retain source, document/version/chunk IDs and provenance for citations, produce ordered context. | `ContextBuilder.build(query: RetrievalQuery, candidates: Sequence[RetrievalCandidate], *, max_tokens: int) -> RetrievedContext` |
+| Context assembly | Deduplicate, bound total content/token budget, retain source, document/version/chunk IDs and provenance for citations, produce ordered context. | `ContextBuilder.build(query: RetrievalQueryContext, candidates: Sequence[RetrievalCandidate], *, max_tokens: int) -> RetrievedContext` |
 | Orchestration | Resolve scope first, embed once, run dense plus only enabled retrievers, fuse, optionally rerank, assemble. Empty scope returns empty context. | `RetrievalService.retrieve(text: str, *, user_id: str, knowledge_base_id: str, document_ids: Sequence[str] = ()) -> RetrievedContext` |
-| Scope resolver | Query PostgreSQL under authenticated user and requested knowledge base; return only current active version IDs. Validate optional document IDs belong to same scope. | `ActiveDocumentScopeResolver.resolve(user_id: str, knowledge_base_id: str, document_ids: Sequence[str] = ()) -> RetrievalScope` |
+| Scope resolver | Query PostgreSQL under authenticated user and requested knowledge base; return only current active version IDs. Validate optional document IDs belong to same scope. | `RetrievalScopeResolver.authorize(request, *, session) -> RetrievalQueryContext` |
 
 The `EmbeddingService` must be injected once into retrieval and built by `build_embedding_service`; no second query embedder or provider selection logic should be created. A retrieval-specific Qdrant query method may be added to the infrastructure adapter, but it must not call `ensure_collection` or create/alter a collection as a side effect.
 
@@ -152,11 +125,11 @@ sequenceDiagram
     end
 ```
 
-The scope allowlist is resolved before Qdrant so an old version cannot leak during the cross-store interval between PostgreSQL activation and Qdrant cleanup. The Qdrant `index_status=active` filter is defense in depth; it is not a replacement for the allowlist. Do not issue an unfiltered search when the allowlist is empty or too large to represent safely.
+The scope allowlist is resolved before Qdrant so an old version cannot leak during the cross-store interval between PostgreSQL activation and Qdrant cleanup. The implemented `QdrantVectorStore.build_retrieval_filter` rejects an empty allowlist and adds user, knowledge-base, version, active-status, document, and metadata conditions. The Qdrant `index_status=active` filter is defense in depth; it is not a replacement for the allowlist. No retrieval call currently executes this filter.
 
 ## 5. Configuration requirements
 
-Initially reuse `qdrant_collection_name`, `qdrant_vector_size`, embedding provider/model/dimensions, and Qdrant timeout/batch settings. Verify the deployed collection is the same collection used by new ingestion, has an unnamed dense vector of matching dimensions, and has suitable keyword payload indexes for `user_id`, `knowledge_base_id`, `document_id`, `document_version_id`, and `index_status`. Do not assume source defaults match deployment.
+The query foundation adds `rag_retrieval_default_top_k` (5), `rag_retrieval_max_top_k` (50), `rag_retrieval_default_score_threshold` (unset), and `rag_retrieval_default_strategy` (`dense`). It reuses `qdrant_collection_name`, `qdrant_vector_size`, embedding provider/model/dimensions, and Qdrant timeout/batch settings once retrieval is implemented. Verify the deployed collection is the same collection used by new ingestion, has an unnamed dense vector of matching dimensions, and has suitable keyword payload indexes for `user_id`, `knowledge_base_id`, `document_id`, `document_version_id`, and `index_status`. Do not assume source defaults match deployment.
 
 Add retrieval-specific settings only when implementation needs them: candidate limit, maximum context tokens, optional reranker selection/limit, and a feature switch for an available lexical path. Defaults should keep lexical and reranking disabled until configured. Avoid new credentials/configuration for providers not selected. A collection migration or vector-schema change is outside this phase's design.
 
@@ -178,6 +151,6 @@ Add retrieval-specific settings only when implementation needs them: candidate l
 3. **No lexical search:** the sparse indexer is documentation only. A lexical adapter, scoring semantics, index, or Qdrant full-text payload configuration remains an explicit future decision. Hybrid mode is not available until then.
 4. **Active-version filtering:** stale, staging, or partially activated Qdrant points can exist around failures and cleanup. The PostgreSQL active-version allowlist and mandatory payload filters are security/correctness requirements.
 5. **Payload index/performance:** the new indexer validates dense vector shape but does not provision payload indexes. Filter correctness may work without them while scaling poorly; deployed Qdrant configuration needs review.
-6. **Knowledge-base authorization model:** `knowledge_base_id` has no FK/ownership table in the inspected schema. The document rows can constrain retrieval, but a future KB model/API must define explicit membership/authorization rules.
+6. **Knowledge-base authorization model:** `knowledge_base_id` has no FK/ownership table in the inspected schema. The implemented resolver infers access from `rag_documents` rows matching the authenticated user and requested KB; a KB with no document rows is inaccessible. A future KB model/API must define explicit membership/authorization rules if empty KBs or sharing are needed.
 7. **API integration scope:** the existing chat route and service consume the experimental user-memory path. Replacing that behavior is a separate contract and migration decision; this design does not do so.
 8. **Existing design note drift:** earlier architecture notes described the collection as 256-dimensional. That matches the legacy user-memory path but conflicts with current new-ingestion settings/provider defaults; deployment inspection is required to resolve it.
