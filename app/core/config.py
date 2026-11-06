@@ -1,4 +1,6 @@
 from functools import lru_cache
+from typing import Literal
+
 from pydantic import ConfigDict, model_validator
 from pydantic_settings import BaseSettings
 
@@ -41,6 +43,10 @@ class Settings(BaseSettings):
     rag_ingestion_dispatch_after_seconds: int = 60
     rag_ingestion_chunk_size: int = 512
     rag_ingestion_chunk_overlap: int = 64
+    rag_retrieval_default_top_k: int = 5
+    rag_retrieval_max_top_k: int = 50
+    rag_retrieval_default_score_threshold: float | None = None
+    rag_retrieval_default_strategy: Literal["dense", "lexical", "hybrid"] = "dense"
 
     # -------------------------
     # SMTP / Notifications
