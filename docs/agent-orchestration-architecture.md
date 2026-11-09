@@ -6,7 +6,7 @@ Status: final architecture recommendation for the initial implementation. This d
 
 Add a provider-neutral, single-agent orchestration layer in `app/agent/`. Use a regular asynchronous Python service as the first runtime: it loads conversation context, optionally calls the existing retrieval service, constructs a bounded prompt, calls an LLM port, and persists the result. Add explicit tool-call handling only when the product needs tools beyond retrieval. This keeps the first implementation testable and avoids adopting a graph runtime without a graph-shaped requirement.
 
-LangGraph is already a dependency and is used by `LangGraphChatGateway`, but only for a two-node render-and-generate flow. The current gateway is coupled to `GeminiClient`, and the selected path is controlled by `use_langgraph_chat`; it is not a provider-neutral agent runtime and does not currently implement tool cycles, durable checkpoints, or multi-agent behavior. Do not reuse it as the new orchestration boundary. Keep existing chat behavior intact; consider LangGraph later if conditional tool loops, resumable execution, or graph-level human approval become demonstrated requirements.
+Existing LangChain/LangGraph chat code and `GeminiClient` are experimental implementations, not production foundations. The new agent must have its own production request path, provider port, runtime, lifecycle, and dependency wiring. Do not inherit their prompt assembly, fallback, state, or error-handling behavior. Start with a direct async orchestration service; introduce a framework only if production requirements later demonstrate a need for graph execution or durable checkpoints.
 
 ## Repository audit
 
@@ -17,17 +17,18 @@ LangGraph is already a dependency and is used by `LangGraphChatGateway`, but onl
 | Retrieval | `RetrievalService.retrieve(RetrievalRequest, authenticated_user_id, session)` returns ranked `RetrievalResult` records and bounded `AssembledContext`. Its preparer validates scope and resolves active versions from user-owned documents. | The agent must call this service; it must not query Qdrant or reimplement authorization/retrieval. Treat its context and provenance as the source context. |
 | Authentication | FastAPI uses `get_current_access_claims`; authenticated identity is the token `sub`. Existing routes derive `user_id` from claims. | Resolve a trusted principal at the route boundary and pass it as a separate, required service argument. Never put user identity in request schemas. |
 | Conversation persistence | `ChatSession` has an owning `user_id`; `ChatMessage` has `chat_id`, `user_id`, role, content, and timestamp. `ChatService.get_chat` scopes by chat ID and user ID; message queries also filter on both. Support chat has parallel dedicated tables. | Prefer the existing general chat tables for initial agent conversations to avoid duplicate conversation infrastructure. Agent persistence needs a careful extension for message metadata and atomic turn handling. Do not reuse support chat tables. |
-| LLM integrations | `GeminiClient` offers async generate and stream methods. `ChatRuntimePort` abstracts the existing chat gateways, but includes retrieval text in its interface. `LangChainChatGateway` and `LangGraphChatGateway` each build prompts and directly call Gemini. | Define a narrower new provider port for message-based completion and streaming. Put Gemini/OpenAI/etc. adapters in `app/infra/llm/`; orchestration should not import provider SDKs. |
-| Framework use | `langchain`, `langgraph`, `langchain-openai`, and `google-genai` are dependencies. LangGraph usage is limited to the legacy chat gateway. | Existing dependencies do not require a new framework or a new infrastructure service. Do not build a multi-agent design. |
+| LLM integrations | Experimental `GeminiClient`, LangChain and LangGraph chat gateways exist. The current source config has `gemini_model` defaulted to `gemini-2.5-flash`, but existing adapters have fallback/model-switching behavior and are not accepted as production quality. | Implement a dedicated production LLM adapter behind the new agent provider port. Reuse approved server configuration inputs and initial provider/model choice, not experimental adapter/runtime behavior. |
+| Framework use | `langchain`, `langgraph`, `langchain-openai`, and `google-genai` are dependencies; current usage is experimental. | Dependency presence is not an architectural requirement. A small async orchestration service and dedicated provider adapter are sufficient initially; add no framework or infrastructure service without a proven need. |
 | API/dependency wiring | Routers are registered in `app/routers/api.py`. FastAPI dependencies and `get_*` factories wire services; retrieval exposes `get_retrieval_service()` and tests use dependency overrides. | Add an agent dependency factory using the same pattern; inject service ports so unit tests can use fakes. |
-| Configuration | Pydantic `Settings` centralizes provider keys/models, RAG defaults, and the legacy `use_langgraph_chat` switch. | Add only needed agent defaults (provider/model, history budget, timeout/output bounds) when implementation begins; no new service URLs are implied. Never expose credentials in schemas. |
+| Configuration | Pydantic `Settings` centralizes current provider keys/models and RAG defaults. `gemini_model` has a source default of `gemini-2.5-flash`; `use_langgraph_chat` selects an experimental chat runtime. | Use server-owned configuration for the approved initial provider/model. Do not use the experimental runtime switch in the new agent. Add dedicated agent timeout/output/retry settings with the approved defaults. Never expose credentials or model selection in schemas. |
 | Errors/logging | Routes translate domain errors into HTTP errors; services use module loggers and avoid leaking provider details. | Keep domain errors in `app/agent/`, map them at the API edge, and log request/conversation IDs and timings without prompts, tokens, or user content. |
 | Tests | Pytest unit/API tests use fakes, dependency overrides, and async test clients; RAG has focused service tests. Integration tests are separately marked. | Cover orchestrator logic with fake retrieval/provider/store ports; API tests must verify user scoping and stream event order. No live services should be needed for ordinary tests. |
 
-### Important current limitations to account for
+### Existing experimental implementations
 
+- Existing LLM clients and chat gateways are experiments. They may help locate current configuration values, but the production agent must not depend on their runtime, prompt assembly, fallback behavior, or provider error handling.
 - `ChatMessage` only allows `user`, `assistant`, and `system` roles and has no structured metadata field for citations or tool events. If tool calls are persisted as first-class messages, add a reviewed migration or keep them in assistant metadata; do not silently broaden the existing API contract.
-- Existing `ChatService` has its own legacy retrieval-context builder, vector memory behavior, provider-specific initialization, and streaming methods. The new agent should not call that service for RAG; it should consume `RetrievalService` directly and own its orchestration.
+- Existing `ChatService` has an experimental retrieval-context builder, vector memory behavior, provider-specific initialization, and streaming methods. The new agent must not call that service; it should consume the existing retrieval service directly and own its orchestration.
 - The retrieval request carries `knowledge_base_id` and retrieval options, but no identity. Its service requires trusted `authenticated_user_id` and a database session. Preserve this exact trust split.
 - Existing stream surfaces include WebSocket and support event patterns. For the new text agent, Server-Sent Events (SSE) is the recommended first transport for a normal HTTP request that streams tokens; reuse the event contract if WebSocket support is later needed.
 
@@ -47,8 +48,9 @@ app/agent/
     registry.py          # explicit allowlisted tool registration and lookup
     retrieval.py         # adapter to existing RetrievalService, if exposed as a tool
   persistence.py         # ChatSession/ChatMessage-backed conversation store
-  dependencies.py        # construction/wiring of ports and service
+  dependencies.py        # construction/wiring of production ports and service
   errors.py              # stable domain exceptions
+app/infra/llm/providers/gemini.py # dedicated production adapter for configured provider
 app/api/v1/agent.py      # authenticated routes and SSE serialization
 app/schemas/agent_api.py # request/response/event-facing schemas
 ```
@@ -61,10 +63,10 @@ The exact file split can remain smaller until it is needed. In particular, do no
 
 Owns transport concerns only: validate the payload, obtain the authenticated user from access claims, pass the database session and trusted user ID to the use case, map expected errors, and serialize either JSON or SSE. The route does not assemble prompts, call providers, or perform direct database scope lookups outside the conversation store.
 
-Recommended routes:
+Approved routes:
 
 - `POST /api/v1/agent/turn` — one-shot JSON interaction.
-- `POST /api/v1/agent/turn/stream` — same request body, `text/event-stream` response.
+- `POST /api/v1/agent/turn/stream` — same request body, `text/event-stream` response consumed with browser Fetch streaming. Existing bearer authentication applies to the POST request.
 - `GET /api/v1/agent/conversations/{conversation_id}/messages` — optional if the existing chat messages route is not used for the agent UI.
 
 Use a router dependency for authenticated claims and the existing `get_db`. For unknown or foreign-owned conversations, return the same not-found result, as current chat/retrieval surfaces do.
@@ -75,17 +77,23 @@ Coordinates one user turn and owns sequencing, not provider or storage details. 
 
 ### Runtime and state
 
-The initial runtime is a small explicit state transition sequence, not a general-purpose autonomous loop:
+The initial runtime is a small explicit state transition sequence, not a general-purpose autonomous loop. Streaming and non-streaming use one underlying runtime and the same request preparation, retrieval, prompt construction, citation validation, persistence, and canonical response assembly. The synchronous method collects the runtime's generation result; the streaming method emits typed progress/delta events from that same execution path and ends with the complete canonical `AgentResponse`.
 
 1. validate runtime options and establish a request/run ID;
 2. load recent conversation history;
 3. retrieve context when a knowledge base was requested;
 4. build bounded model messages;
 5. generate or stream model output;
-6. process output and references;
+6. validate inline citations against the retrieved source set and process output;
 7. persist and return.
 
 Represent state as a typed per-invocation value, not a process-global mutable dictionary. Suggested fields: `run_id`, trusted `user_id`, `conversation_id`, current user message, selected retrieval scope, history, retrieved chunks/context, model messages, tool results, partial/final output, and usage/finish metadata. Do not store authoritative user ownership in a client-controlled state blob. Do not require Redis, a checkpointer, or long-lived in-memory session state for ordinary text turns.
+
+### Production deployment and scaling
+
+Keep the API and orchestrator stateless across requests and processes. Each run owns its state locally; PostgreSQL remains the shared source of truth for conversations and messages. This lets ordinary HTTP instances scale horizontally without sticky sessions or a new orchestration service. Do not hold a database transaction or connection open during retrieval/provider network calls; use short transactions for authorization, history snapshots, and persistence. Configure database pooling and per-process provider concurrency/timeouts so load is bounded. Propagate request cancellation and shutdown cancellation to provider streams. Do not add Redis, a task queue, or durable graph checkpoints for synchronous turns. If future workloads require resumable long-running jobs or background execution, add a durable run lifecycle deliberately as a separate evolution.
+
+Conversation turn ordering must also be safe across multiple API instances. Do not rely on an in-process mutex. At implementation, use a database-backed optimistic version/active-turn check to reject concurrent writes to the same conversation with a stable conflict response; keep the provider call outside the database transaction. Do not introduce a distributed lock service solely for conversation ordering.
 
 ### Context management and prompts
 
@@ -107,7 +115,11 @@ class LLMPort(Protocol):
     def stream(self, request: LLMRequest) -> AsyncIterator[LLMEvent]: ...
 ```
 
-`LLMRequest` contains structured messages, selected model options from server configuration, and an optional allowlisted tool schema set. `LLMResult` contains text, structured tool calls (if supported), finish reason, and safe usage metadata. `LLMEvent` contains text deltas and, only if the chosen provider can support it reliably, structured tool-call deltas. Hide provider SDK response types behind adapters. Resolve the provider/model in dependency wiring or a server-side registry; an untrusted request must not name arbitrary providers or credentials. Add providers one adapter at a time without changing the orchestrator contract.
+`LLMRequest` contains structured messages, selected model options from server configuration (including the configured model, timeout, and maximum output tokens), and an optional allowlisted tool schema set. `LLMResult` contains text, structured tool calls (if supported), finish reason, and safe usage metadata. `LLMEvent` contains text deltas and, only if the chosen provider can support it reliably, structured tool-call deltas. Hide provider SDK response types behind adapters. Resolve the provider/model in dependency wiring or a server-side registry; an untrusted request must not name arbitrary providers or credentials. Add providers one adapter at a time without changing the orchestrator contract.
+
+The initial production adapter is dedicated to the approved configured provider/model, currently identified by the source setting `gemini_model` (source default `gemini-2.5-flash`). Inspect the effective application configuration during implementation; do not inspect or print `.env` secrets. Implement the provider port as a production adapter with explicit timeout, output-token controls, safe error classification, cancellation, and supported streaming semantics. Do not wrap or extend the experimental `GeminiClient`, inherit its alternate-model/canned-response fallbacks, or present provider failure as a successful answer. Keep this adapter isolated from orchestration so the configured provider can later be replaced or expanded without rewriting the runtime.
+
+Apply a 120-second generation deadline and a maximum of 2,048 output tokens by default, both configurable through dedicated agent settings/environment values. Retry only bounded transient failures before any stream event containing generated text has been emitted. Once output begins, never restart generation or transparently retry; terminate the run with a safe error event. Non-streaming generation may retry transient errors within the same configured bound. Do not retry validation, authorization, or other permanent errors.
 
 ### Tool registry
 
@@ -115,9 +127,11 @@ Start with an explicit registry of named tool specifications: name, description,
 
 The first release can have an empty or small allowlist. Tool cycles, limits, and duplicate-call behavior must be bounded before enabling model-driven calls.
 
-### Response processing
+### Response processing and inline citations
 
-Normalize provider output, enforce output length/content policy, associate retrieved references with stable citation IDs, and build a provider-neutral response. Keep source text and model answer separate. Do not infer citations from free-form generated text: return retrieved provenance as structured sources, and let the prompt instruct the model to cite only supplied IDs if inline citations are used.
+Assign stable, per-answer numeric citation IDs (`[1]`, `[2]`, ...) to the retrieved chunks supplied to generation. The prompt must instruct the model to cite only these IDs and to make no citation when no retrieved source supports a claim. Validate every generated marker against the IDs in the current run; remove or normalize unknown markers before they are sent as text and before persistence. The stream validator must buffer a partial marker across provider chunks so it cannot leak an invalid half-marker. Do not invent replacement citations. No retrieval means no inline markers and an empty sources array.
+
+The canonical `AgentResponse` includes the final assistant text and a structured `citations` array. Each entry retains citation number, document ID, document-version ID, chunk ID, source reference, page numbers, and section/heading path from `RetrievalResult`. Return only safe provenance fields, never raw Qdrant metadata. Emit the `sources` event before answer deltas so clients can render references while reading. The terminal `run.completed` event carries the complete canonical response, matching the non-streaming JSON response. The model may choose not to cite a provided source; the server must not append citations on its behalf.
 
 ## Request and response contracts
 
@@ -139,7 +153,7 @@ The following are design shapes, not committed Pydantic schemas. Extra fields sh
 }
 ```
 
-`conversation_id` omitted means create a new conversation. `message` is required, trimmed, and bounded. `knowledge_base_id` omitted means no document retrieval for this turn. Retrieval options should mirror only supported fields of `RetrievalRequest`; set safe defaults server-side. `user_id`, provider credentials, system prompts, arbitrary tools, and prior conversation history are never request inputs. Decide whether provider/model selection is a server-owned per-conversation setting; do not accept it as an unconstrained client override.
+`conversation_id` omitted means create a new conversation. `message` is required, trimmed, and bounded. `knowledge_base_id` omitted means no document retrieval for this turn. Retrieval options should mirror only supported fields of `RetrievalRequest`; set safe defaults server-side. `user_id`, provider credentials, provider/model names, system prompts, arbitrary tools, and prior conversation history are never request inputs. The V1 adapter resolves provider/model only from server configuration.
 
 ### Synchronous JSON response
 
@@ -149,8 +163,8 @@ The following are design shapes, not committed Pydantic schemas. Extra fields sh
   "run_id": "...",
   "user_message": {"id": "...", "role": "user", "content": "...", "created_at": "..."},
   "assistant_message": {"id": "...", "role": "assistant", "content": "...", "created_at": "..."},
-  "sources": [
-    {"citation_id": "S1", "document_id": "...", "document_version_id": "...", "chunk_id": "...", "source_ref": "...", "page_numbers": [2], "heading_path": ["Retention"]}
+  "citations": [
+    {"citation_number": 1, "document_id": "...", "document_version_id": "...", "chunk_id": "...", "source_ref": "...", "page_numbers": [2], "heading_path": ["Retention"]}
   ],
   "finish_reason": "stop"
 }
@@ -169,17 +183,17 @@ data: {"run_id":"...","conversation_id":"..."}
 event: message.started
 data: {"message_id":"...","role":"assistant"}
 
-event: message.delta
-data: {"text":"The retention period is..."}
-
 event: sources
-data: {"items":[{"citation_id":"S1","document_id":"...","chunk_id":"..."}]}
+data: {"items":[{"citation_number":1,"document_id":"...","document_version_id":"...","chunk_id":"...","page_numbers":[2],"heading_path":["Retention"]}]}
+
+event: message.delta
+data: {"text":"The retention period is [1]..."}
 
 event: run.completed
-data: {"message_id":"...","finish_reason":"stop"}
+data: {"response":{"conversation_id":"...","run_id":"...","user_message":{"id":"...","role":"user","content":"...","created_at":"..."},"assistant_message":{"id":"...","role":"assistant","content":"...","created_at":"..."},"citations":[{"citation_number":1,"document_id":"...","document_version_id":"...","chunk_id":"...","page_numbers":[2],"heading_path":["Retention"]}],"finish_reason":"stop"}}
 ```
 
-Failure after headers should emit `run.error` with a stable safe error code and then close; do not include exception strings, provider response bodies, or credentials. Clients should treat only `run.completed` as a successfully persisted final answer. Define heartbeat, disconnect cancellation, and partial-output persistence before implementation. The same underlying request and response value objects should serve both transports; SSE framing is transport-specific.
+Failure after headers should emit `run.error` with a stable safe error code and then close; do not include exception strings, provider response bodies, or credentials. Clients should treat only `run.completed` as a successfully persisted final answer. Observe request disconnection/cancellation and cancel the provider stream, stop orchestration, and avoid persisting incomplete assistant content. The same underlying request and response value objects serve both streaming and non-streaming calls; SSE framing is transport-specific.
 
 ## Agent service interface
 
@@ -190,15 +204,15 @@ class AgentOrchestratorPort(Protocol):
     async def run(
         self, request: AgentTurnRequest, *, authenticated_user_id: str,
         session: AsyncSession,
-    ) -> AgentTurnResponse: ...
+    ) -> AgentResponse: ...
 
-    def stream(
+    async def stream(
         self, request: AgentTurnRequest, *, authenticated_user_id: str,
         session: AsyncSession,
     ) -> AsyncIterator[AgentEvent]: ...
 ```
 
-The streaming method may be an `async def` returning an async iterator if needed to perform validation before iteration. Keep domain types separate from FastAPI `Request`, `StreamingResponse`, and provider SDK types. Ensure the response persistence transaction is explicit: the provider call is outside the DB transaction; use short transactions to create/load the conversation and persist turn records.
+Keep domain types separate from FastAPI `Request`, `StreamingResponse`, and provider SDK types. The final event must carry the complete canonical `AgentResponse`, not just a message ID or finish reason. Ensure the response persistence transaction is explicit: the provider call is outside the DB transaction; use short transactions to create/load the conversation and persist turn records.
 
 Supporting ports:
 
@@ -217,7 +231,7 @@ Recommended persistence approach:
 1. Add an Alembic migration for a conversation `kind` discriminator and nullable message metadata JSON. Store citation references, run ID, finish status, and concise tool-call summaries there. Keep canonical user/assistant text in `content`; never store hidden reasoning, full rendered prompts, credentials, or raw provider payloads.
 2. Persist the user message before provider execution. Persist an assistant message only after the provider completes successfully. On provider error or client disconnect, emit a safe terminal error, leave the user message in history, and do not store truncated output as a normal assistant answer. A retry is a new turn. This is simple and makes history unambiguous; resumable runs are out of scope.
 3. Load a bounded recent window from the current conversation for every turn. Do not search other conversations or infer cross-chat memories in the first release. If cross-conversation memory is added later, make it separately configurable, user-visible, source-attributed, and deletable without deleting the source chat.
-4. Archive conversations with the existing soft-archive behavior; scope list/get/message operations to both conversation ID and authenticated user ID. Deletion/retention policy beyond current archive semantics remains a product/data policy choice.
+4. Archive conversations with existing soft-archive behavior; scope list/get/message operations to both conversation ID and authenticated user ID. Do not add hard deletion or automatic retention purging in V1. Document future retention requirements separately if they arise.
 5. Keep conversation history in PostgreSQL and derive the prompt window from stored messages. Do not add Redis or LangGraph checkpoint storage for ordinary request/response state.
 
 Dedicated agent conversation tables are not recommended for the initial release. Revisit only if agent conversations require a separate retention lifecycle or message structure that cannot be represented without destabilizing the existing chat tables.
@@ -258,46 +272,37 @@ sequenceDiagram
 - Persistence-test user-scoped conversation reads/writes and the migration/model contract. Test that only completed responses produce a normal successful assistant record.
 - Keep live provider, PostgreSQL, and vector-store tests separately marked integration; ordinary tests use fakes, consistent with current repository convention.
 
-## Final defaults and remaining product decisions
+## Approved V1 decisions
 
-The following defaults provide a polished conversation experience while staying within this application's current user-owned data model. They follow common ChatGPT/Claude interaction patterns without copying their proprietary implementation details:
+These decisions are approved inputs to implementation. They refine runtime/API details without changing the modular, provider-neutral architecture above.
 
-| Decision | Recommended default |
+| Area | Approved V1 decision |
 |---|---|
-| Conversation ownership | One authenticated individual owns each conversation. Derive identity only from the access token; apply the owner predicate to every operation. |
-| History | Persist conversations and messages in PostgreSQL; show prior turns in conversation history and include only a bounded recent window in model context. No cross-chat memory in V1. |
-| New chat | Omit `conversation_id` to create a new conversation; return its ID immediately in the initial stream event so the client can reconnect its UI to that conversation. |
-| Knowledge-base scope | Accept an optional KB on each turn. No implicit cross-conversation KB search. Call `RetrievalService` on every scoped turn so ownership and active document scope are rechecked. |
-| Provider/model | Choose from server configuration. Do not accept provider credentials or arbitrary model IDs from a client. Keep provider preference global in V1; add per-user choice only with a product requirement and allowlist. |
-| Retrieval and tools | Retrieval is a deterministic pre-generation step. Register only explicitly reviewed tools; ship no model-driven tool loop until at least one concrete tool use case and execution policy exist. |
-| Streaming | Use SSE with typed events, deltas, sources, and one terminal event. If generation fails or disconnects, do not persist a partial assistant answer; the user message remains and a retry is a new turn. |
-| Sources | Return citations as structured source records with stable per-answer IDs and document provenance. Inline markers can be added in the answer format, but must reference only those returned IDs. |
-| Conversation lifecycle | Support create, list, get, rename, and archive through user-scoped endpoints. Keep archive distinct from hard deletion; define deletion/retention policy before shipping a delete action. |
-| Memory controls | Do not add automatic long-term memory in V1. If later introduced, make it opt-in or clearly controllable, show its sources, and keep memory deletion independent from chat deletion. |
-| Framework | Start with an explicit async service. Reconsider LangGraph only when conditional multi-step tool execution, checkpointed resume, or human approval is required. |
+| Streaming protocol | SSE-style typed events over HTTP POST, consumed with browser Fetch streaming. Use existing bearer authentication. Observe disconnect/cancellation and cancel the provider/runtime. Do not add WebSockets unless frontend inspection proves they are required. |
+| Unified runtime | Streaming and non-streaming share the same orchestration execution path and canonical request/response types. The completed stream event carries the full canonical `AgentResponse`. |
+| Initial provider/model | Use the approved existing configured provider/model choice; current source configuration is Gemini with `Settings.gemini_model` defaulting to `gemini-2.5-flash`. Build a dedicated production adapter rather than reuse the experimental Gemini integration. Verify the effective deployment setting during implementation without reading or exposing `.env` secrets. |
+| Generation limits | Default generation deadline is 120 seconds; default maximum output is 2,048 tokens. Both are configurable through application settings/environment. |
+| Retries | Default to at most 2 retries for transient failures, configurable through application settings. Never retry a stream after generated text has been emitted. Do not retry authorization, validation, or permanent provider errors. |
+| Citations | Generate inline numbered markers such as `[1]` and return a structured `citations` array. Preserve document, version, chunk, page, and section/heading references. Markers must map to retrieved sources; validate before emitting/persisting and never fabricate them. Without retrieval, emit no citation markers and return an empty array. |
+| Retention | Keep existing archive semantics. No hard-delete endpoint, irreversible deletion, or automatic retention purge in V1. Record future retention policy as a separate product requirement. |
+| Model choice | No user model selection or model-selection UI in V1. Provider/model remain server-configured; API clients cannot supply model names or credentials. Preserve the provider abstraction for a future allowlisted selection feature. |
+| Conversation context | Persist turns in PostgreSQL and use bounded history from the current conversation only. No cross-chat memory in V1. |
+| Tools/framework | Retrieval remains deterministic. No multi-agent system or model-driven tool cycle until a concrete tool requirement exists. |
 
-### Risks controlled by these defaults
+### Implementation risks and controls
 
-- **Cross-user disclosure:** ownership is enforced by both the conversation store and `RetrievalService`; request data cannot supply a trusted user ID.
-- **Stale knowledge-base authorization:** each retrieval call reauthorizes the requested KB against the current authenticated user and active versions.
-- **Partial or duplicated turns:** a failed stream cannot look like a completed assistant message; retries are distinct turns and terminal events are explicit.
-- **Provider lock-in:** provider SDKs are isolated behind `LLMPort`; provider choice is server-side and can change without changing API contracts.
-- **Prompt/context overflow:** retrieval and conversation history have separate bounded budgets, with a total model request budget enforced by context management.
-- **Tool misuse:** the model can invoke only registered, schema-validated, bounded handlers; no arbitrary code execution is included.
-- **Untrusted retrieved text:** retrieved passages are treated as data and prompt instructions must not grant them authority to override system policy.
-- **Privacy surprise:** no hidden cross-chat recall or long-term memory is introduced in the first release.
-- **Persistence compatibility:** agent messages are marked by conversation kind, and existing chat API contracts remain stable.
+- **Experimental provider behavior:** current LLM clients can use canned fallback responses, alternate models, and short timeouts. The dedicated production adapter must implement strict configured-model behavior, typed errors, timeout/cancellation, and output limits independently; it must never present a fallback as a grounded answer.
+- **Citation leakage during streaming:** model output can split a citation marker across chunks or invent a number. Validate citation tokens against the run's retrieved source IDs before emitting them; buffer partial markers. The final canonical response and persisted content must exactly reflect the validated text.
+- **Retry duplication:** retry only before generated output reaches the client. After first delta, emit a safe terminal error on failure and leave the incomplete assistant answer unpersisted.
+- **Disconnect cleanup:** cancellation must propagate through the runtime to close the provider stream and avoid persisting a partial answer. The user message remains a valid history item.
+- **Cross-user disclosure:** ownership is enforced by the conversation store and `RetrievalService`; request data cannot supply trusted identity.
+- **Stale KB authorization:** reauthorize every retrieval turn against the authenticated user and currently active versions.
+- **Context overflow and prompt injection:** bound history and retrieved context within a total model budget; treat document text as untrusted data.
+- **Persistence compatibility:** distinguish agent conversations while preserving existing chat API contracts; archive rather than hard-delete.
+- **Horizontal scaling:** keep run state out of process globals, use PostgreSQL for shared conversation state, and enforce turn-order conflicts in the database rather than a local lock.
 
-### Decisions that still need product confirmation
-
-Only these items affect user-facing behavior enough to confirm before implementation:
-
-1. Whether the frontend supports SSE `POST` streaming. If it requires WebSockets, keep the same typed events and use the established WebSocket auth pattern.
-2. Which initial LLM provider/model and operational limits (timeout, output-token cap) the deployment should use. The architecture stays provider-neutral either way.
-3. Whether the first UI needs inline citation markers in answer text, in addition to the structured sources list.
-4. The product's retention and hard-delete policy. Until defined, use current archive semantics and do not expose irreversible hard deletion.
-5. Whether users should choose among allowlisted models in V1. Default recommendation is server-configured selection without a client override.
+No product decision remains open for the V1 behavior listed above. At implementation time, confirm the frontend's Fetch streaming support and inspect effective server provider/model configuration as required by the approved decisions. Neither confirmation changes the architecture; if Fetch streaming is unsupported, pause before choosing a different transport.
 
 ## Audit completion
 
-This document is the final architecture recommendation. No orchestration, schema, migration, route, dependency, or test implementation has been added. The audit was based on source inspection; no test suite was run because implementation was not requested.
+This document is the final architecture recommendation with approved V1 decisions recorded. It does not implement the orchestration, API, schema, migration, dependency wiring, or tests; those changes belong to their relevant development steps. The audit inspected source configuration and code without reading `.env` secrets. No test suite was run because implementation was not requested in this step.
