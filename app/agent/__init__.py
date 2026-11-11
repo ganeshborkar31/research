@@ -7,6 +7,22 @@ from app.agent.models import (
 )
 from .context import ContextLimitError, ContextManager, ContextMessage
 from .persistence import ConversationNotFound, ConversationStore, ConversationTurn
+from .retrieval_tool import (
+    RetrievalTool,
+    RetrievalToolOutput,
+    build_default_tool_registry,
+    register_retrieval_tool,
+)
+from .tools import (
+    AuthorizationRequirement,
+    ToolAuthorizationError,
+    ToolExecutionConfig,
+    ToolExecutionContext,
+    ToolInputError,
+    ToolRegistry,
+    ToolResult,
+    ToolUnavailableError,
+)
 
 __all__ = [
     "AgentError", "AgentMessage", "AgentRequest", "AgentResponse", "Citation",
@@ -14,4 +30,8 @@ __all__ = [
     "RetrievalConfig", "ResponseConfig", "TokenUsage", "ToolExecution",
     "ContextLimitError", "ContextManager", "ContextMessage",
     "ConversationNotFound", "ConversationStore", "ConversationTurn",
+    "AuthorizationRequirement", "ToolAuthorizationError", "ToolExecutionConfig",
+    "ToolExecutionContext", "ToolInputError", "ToolRegistry", "ToolResult",
+    "ToolUnavailableError", "RetrievalTool", "RetrievalToolOutput",
+    "build_default_tool_registry", "register_retrieval_tool",
 ]
