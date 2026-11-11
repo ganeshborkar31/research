@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import math
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -195,3 +196,34 @@ class AgentResponse(ContractModel):
         if len(numbers) != len(set(numbers)):
             raise ValueError("citation_number values must be unique")
         return self
+
+
+class AgentEventData(ContractModel):
+    """Typed payload shared by the versioned agent lifecycle events."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=False)
+
+    phase: str | None = None
+    message_id: Identifier | None = None
+    text: str | None = None
+    response: AgentResponse | None = None
+    error: AgentError | None = None
+    tool: ToolExecution | None = None
+    citations: tuple[Citation, ...] | None = None
+
+
+AgentEventType = Literal[
+    "request.started", "conversation.loaded", "retrieval.started", "retrieval.completed",
+    "tool.started", "tool.completed", "message.started", "message.delta",
+    "message.completed", "request.completed", "request.failed",
+]
+
+
+class AgentEvent(ContractModel):
+    event_id: Identifier
+    request_id: Identifier
+    conversation_id: Identifier
+    event_type: AgentEventType
+    sequence: int = Field(ge=1, strict=True)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    data: AgentEventData

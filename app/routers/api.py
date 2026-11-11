@@ -8,6 +8,7 @@ from app.api.v1.support import router as support_router
 from app.api.v1.twilio import router as twilio_router
 from app.api.v1.users import router as users_router
 from app.api.v1.retrieval import router as retrieval_router
+from app.api.v1.agent import router as agent_router
 
 
 def include_api_routers(app: FastAPI) -> None:
@@ -51,3 +52,4 @@ def include_api_routers(app: FastAPI) -> None:
         prefix="/api/v1/retrieval",
         tags=["Retrieval"],
     )
+    app.include_router(agent_router, prefix="/api/v1/agent", tags=["Agent"])

@@ -8,6 +8,7 @@ orchestration code.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 import re
 import time
 from dataclasses import dataclass, field
@@ -18,7 +19,8 @@ from app.agent.context import ContextManager, ContextMessage
 from app.agent.llm.chat_model import ChatMessage, ChatModel, ChatProviderError, GenerationOptions
 from app.agent.models import (
     AgentError, AgentRequest, AgentResponse, Citation, ErrorCategory,
-    ExecutionStatus, FinishReason, TokenUsage as ResponseTokenUsage,
+    ExecutionStatus, FinishReason, TokenUsage as ResponseTokenUsage, AgentEvent,
+    AgentEventData,
 )
 from app.agent.persistence import ConversationNotFound, ConversationStore
 from app.agent.retrieval_tool import RetrievalToolOutput
@@ -78,6 +80,7 @@ class AgentState:
     tool_results: list[dict[str, Any]] = field(default_factory=list)
     tool_executions: list[Any] = field(default_factory=list)
     model_response: Any | None = None
+    partial_output: str = ""
     citations: tuple[Citation, ...] = ()
     status: ExecutionStatus = ExecutionStatus.INCOMPLETE
     usage: ResponseTokenUsage | None = None
@@ -116,6 +119,17 @@ class ModelExecutor:
                            config.max_output_tokens),
         )
         return await self.model.generate(normalized, options=options)
+
+    async def stream(self, messages: Sequence[ContextMessage], request: AgentRequest,
+                     config: RuntimeConfig):
+        normalized = [ChatMessage(item.role, item.content) for item in messages]
+        options = GenerationOptions(
+            temperature=request.response.temperature,
+            max_tokens=min(request.response.max_output_tokens or config.max_output_tokens,
+                           config.max_output_tokens),
+        )
+        async for chunk in self.model.stream(normalized, options=options):
+            yield chunk
 
 
 class ToolExecutor:
@@ -196,10 +210,53 @@ class AgentRuntime:
             if cancelled is not None:
                 cancelled.cancel()
 
-    async def _execute(self, request: AgentRequest, context: ExecutionContext) -> AgentResponse:
+    async def stream(self, request: AgentRequest, context: ExecutionContext) -> AsyncIterator[AgentEvent]:
+        """Emit ordered lifecycle events while running the same turn implementation."""
+        queue: asyncio.Queue[AgentEvent | None] = asyncio.Queue()
+        sequence = 0
+        conversation_id = request.conversation_id or "pending"
+        async def emit(event_type: str, data: AgentEventData, *, event_conversation_id: str | None = None) -> None:
+            nonlocal sequence
+            sequence += 1
+            await queue.put(AgentEvent(event_id=str(uuid4()), request_id=context.request_id,
+                                       conversation_id=event_conversation_id or conversation_id, event_type=event_type,
+                                       sequence=sequence, data=data))
+        async def run() -> None:
+            nonlocal sequence
+            try:
+                response = await asyncio.wait_for(
+                    self._execute(request, context, emit=emit, streaming=True),
+                    timeout=context.timeout_seconds or self.config.timeout_seconds,
+                )
+                # Update terminal event ID scope after a newly created conversation is known.
+                sequence += 1
+                terminal = "request.completed" if response.status == ExecutionStatus.COMPLETED else "request.failed"
+                await queue.put(AgentEvent(event_id=str(uuid4()), request_id=context.request_id,
+                    conversation_id=response.conversation_id, event_type=terminal, sequence=sequence,
+                    data=AgentEventData(response=response, error=response.error)))
+            except asyncio.CancelledError:
+                raise
+            finally:
+                await queue.put(None)
+        task = asyncio.create_task(run())
+        try:
+            while True:
+                event = await queue.get()
+                if event is None:
+                    break
+                yield event
+                if event.event_type in {"request.completed", "request.failed"}:
+                    break
+        finally:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    async def _execute(self, request: AgentRequest, context: ExecutionContext, *, emit=None,
+                       streaming: bool = False) -> AgentResponse:
         holder: dict[str, AgentState] = {}
         try:
-            return await self._execute_turn(request, context, holder)
+            return await self._execute_turn(request, context, holder, emit=emit, streaming=streaming)
         except asyncio.CancelledError:
             state = holder.get("state")
             if state is not None and state.user_message_id:
@@ -233,9 +290,15 @@ class AgentRuntime:
             state = holder.get("state")
             if state is not None and state.user_message_id:
                 await self._safe_fail(state, context)
-            return self._error(context.request_id, state.conversation_id if state else
-                               (request.conversation_id or "pending"), "execution_stage_failed",
-                               ErrorCategory.PROVIDER, True)
+            response = self._error(context.request_id, state.conversation_id if state else
+                                   (request.conversation_id or "pending"), "execution_stage_failed",
+                                   ErrorCategory.PROVIDER, True)
+            if state is not None and state.partial_output:
+                response = response.model_copy(update={
+                    "status": ExecutionStatus.INCOMPLETE,
+                    "assistant_output": state.partial_output,
+                })
+            return response
         except Exception:
             state = holder.get("state")
             if state is not None and state.user_message_id:
@@ -245,7 +308,8 @@ class AgentRuntime:
                                ErrorCategory.INTERNAL, False)
 
     async def _execute_turn(self, request: AgentRequest, context: ExecutionContext,
-                            holder: dict[str, AgentState]) -> AgentResponse:
+                            holder: dict[str, AgentState], *, emit=None,
+                            streaming: bool = False) -> AgentResponse:
         if context.cancellation is not None and context.cancellation.is_set():
             raise asyncio.CancelledError
         if request.conversation_id is None:
@@ -263,12 +327,17 @@ class AgentRuntime:
             authorized_knowledge_base_ids=(request.knowledge_base_id,) if request.knowledge_base_id else (),
         )
         holder["state"] = state
+        if emit:
+            await emit("request.started", AgentEventData(phase="started"),
+                       event_conversation_id=conversation_id)
         # Expose state only on this coroutine, never on the runtime instance.
         turn = await self.conversations.begin_turn(
             context.session, user_id=context.user.user_id, conversation_id=conversation_id,
             content=request.message, request_id=context.request_id,
         )
         state.user_message_id = str(turn.user_message.id)
+        if emit:
+            await emit("conversation.loaded", AgentEventData(message_id=state.user_message_id))
         if turn.already_started:
             messages = await self.conversations.list_messages(
                 context.session, user_id=context.user.user_id, conversation_id=conversation_id,
@@ -289,6 +358,7 @@ class AgentRuntime:
 
         citations: tuple[Citation, ...] = ()
         if request.knowledge_base_id:
+            if emit: await emit("retrieval.started", AgentEventData(phase="retrieval"))
             if "knowledge_base_retrieval" not in {t.name for t in self.tool_executor.registry.available_tools()}:
                 raise ToolUnavailableError("retrieval tool is not registered")
             args: dict[str, Any] = {
@@ -304,6 +374,9 @@ class AgentRuntime:
                                              session=context.session),
             )
             state.tool_executions.append(result.execution)
+            if emit:
+                await emit("retrieval.completed", AgentEventData(tool=result.execution,
+                                                                  citations=tuple(result.output.get("citations", ())) or None))
             if result.execution.status == "succeeded":
                 retrieval = RetrievalToolOutput.model_validate(result.output)
                 state.retrieved_context = retrieval.context.text
@@ -320,11 +393,13 @@ class AgentRuntime:
         for intent in intents:
             if context.cancellation is not None and context.cancellation.is_set():
                 raise asyncio.CancelledError
+            if emit: await emit("tool.started", AgentEventData(phase=intent.name))
             result = await self.tool_executor.execute(
                 intent, context=ToolExecutionContext(authenticated_user_id=context.user.user_id,
                                                      session=context.session),
             )
             state.tool_executions.append(result.execution)
+            if emit: await emit("tool.completed", AgentEventData(tool=result.execution))
             state.tool_results.append({"name": intent.name, "output": result.output,
                                        "status": result.execution.status})
 
@@ -338,7 +413,22 @@ class AgentRuntime:
             retrieved_context=state.retrieved_context,
             tool_results=[ContextMessage("system", tool_context)] if tool_context else (),
         )
-        state.model_response = await self.model_executor.generate(prompt, request, self.config)
+        if streaming:
+            if emit: await emit("message.started", AgentEventData(message_id=state.user_message_id))
+            chunks = []
+            usage = None
+            async for chunk in self.model_executor.stream(prompt, request, self.config):
+                if context.cancellation is not None and context.cancellation.is_set():
+                    raise asyncio.CancelledError
+                if chunk.content:
+                    chunks.append(chunk.content)
+                    state.partial_output = "".join(chunks)
+                    if emit: await emit("message.delta", AgentEventData(text=chunk.content))
+                if chunk.usage: usage = chunk.usage
+            from app.agent.llm.chat_model import ChatResponse
+            state.model_response = ChatResponse("".join(chunks), getattr(self.model_executor.model, "model", "unknown"), usage or ResponseTokenUsage())
+        else:
+            state.model_response = await self.model_executor.generate(prompt, request, self.config)
         output, citations = self.output_processor.process(state.model_response.content, state.citations)
         usage = state.model_response.usage
         state.usage = ResponseTokenUsage(
@@ -350,6 +440,7 @@ class AgentRuntime:
             user_message_id=state.user_message_id, assistant_content=output,
         )
         state.status = ExecutionStatus.COMPLETED
+        if emit: await emit("message.completed", AgentEventData(message_id=str(assistant.id), text=output))
         return AgentResponse(
             request_id=context.request_id, conversation_id=conversation_id, message_id=str(assistant.id),
             status=state.status, assistant_output=output, citations=citations,

@@ -1,7 +1,7 @@
 """Provider-neutral agent contracts and production components."""
 
 from app.agent.models import (
-    AgentError, AgentMessage, AgentRequest, AgentResponse, Citation, ErrorCategory,
+    AgentError, AgentEvent, AgentEventData, AgentMessage, AgentRequest, AgentResponse, Citation, ErrorCategory,
     ExecutionStatus, FinishReason, MessageRole, RetrievalConfig, ResponseConfig,
     TokenUsage, ToolExecution,
 )
@@ -30,7 +30,7 @@ from .runtime import (
 )
 
 __all__ = [
-    "AgentError", "AgentMessage", "AgentRequest", "AgentResponse", "Citation",
+    "AgentError", "AgentEvent", "AgentEventData", "AgentMessage", "AgentRequest", "AgentResponse", "Citation",
     "ErrorCategory", "ExecutionStatus", "FinishReason", "MessageRole",
     "RetrievalConfig", "ResponseConfig", "TokenUsage", "ToolExecution",
     "ContextLimitError", "ContextManager", "ContextMessage",
