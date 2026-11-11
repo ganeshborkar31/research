@@ -29,7 +29,7 @@ class ConversationStore:
     """User-scoped access to the existing chat session and message tables."""
 
     async def create(self, db: AsyncSession, *, user_id: str, title: str = "New Chat") -> ChatSession:
-        conversation = ChatSession(user_id=user_id, title=title.strip()[:255] or "New Chat")
+        conversation = ChatSession(user_id=user_id, title=title.strip()[:255] or "New Chat", kind="agent")
         db.add(conversation)
         await db.commit()
         await db.refresh(conversation)
@@ -40,6 +40,7 @@ class ConversationStore:
             ChatSession.id == conversation_id,
             ChatSession.user_id == user_id,
             ChatSession.status == "active",
+            ChatSession.kind == "agent",
         ))
         conversation = result.scalar_one_or_none()
         if conversation is None:
@@ -74,6 +75,7 @@ class ConversationStore:
             ChatSession.id == conversation_id,
             ChatSession.user_id == user_id,
             ChatSession.status == "active",
+            ChatSession.kind == "agent",
         ).values(next_message_sequence=ChatSession.next_message_sequence + 2)
          .returning(ChatSession.next_message_sequence))
         next_sequence = allocation.scalar_one_or_none()
@@ -126,6 +128,7 @@ class ConversationStore:
             ChatSession.id == conversation_id,
             ChatSession.user_id == user_id,
             ChatSession.status == "active",
+            ChatSession.kind == "agent",
         ))
         if user_message is None or conversation_result.scalar_one_or_none() is None:
             raise ConversationNotFound(conversation_id)

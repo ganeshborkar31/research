@@ -74,6 +74,7 @@ class ChatService:
                 and_(
                     ChatSession.user_id == user_id,
                     ChatSession.status == "active",
+                    ChatSession.kind == "chat",
                 )
             )
             .order_by(ChatSession.last_message_at.desc().nullslast(), ChatSession.created_at.desc())
@@ -95,6 +96,7 @@ class ChatService:
                 ChatSession.id == chat_id,
                 ChatSession.user_id == user_id,
                 ChatSession.status == "active",
+                ChatSession.kind == "chat",
             )
         )
         result = await db.execute(query)
@@ -369,6 +371,7 @@ async def _allocate_message_sequences(db: AsyncSession, chat: ChatSession, *, co
             ChatSession.id == chat.id,
             ChatSession.user_id == chat.user_id,
             ChatSession.status == "active",
+            ChatSession.kind == "chat",
         )
         .values(next_message_sequence=ChatSession.next_message_sequence + count)
         .returning(ChatSession.next_message_sequence)

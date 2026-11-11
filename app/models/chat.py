@@ -11,6 +11,7 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
     __table_args__ = (
         CheckConstraint("status IN ('active', 'archived')", name="ck_chat_sessions_status"),
+        CheckConstraint("kind IN ('chat', 'agent')", name="ck_chat_sessions_kind"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
@@ -21,6 +22,7 @@ class ChatSession(Base):
         index=True,
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="New Chat")
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="chat", server_default="chat")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

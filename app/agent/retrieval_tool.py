@@ -104,9 +104,9 @@ def build_default_tool_registry(
 
 
 def _citation(number: int, result: RetrievalResult) -> Citation:
-    metadata = dict(result.metadata)
-    metadata.update({
-        "knowledge_base_id": result.knowledge_base_id,
+    # Only expose normalized provenance and ranking fields. Retrieval metadata may
+    # originate in arbitrary document payloads and is not a public API surface.
+    metadata = {
         "score": result.score,
         "dense_score": result.dense_score,
         "lexical_score": result.lexical_score,
@@ -114,7 +114,8 @@ def _citation(number: int, result: RetrievalResult) -> Citation:
         "lexical_rank": result.lexical_rank,
         "fused_score": result.fused_score,
         "rerank_rank": result.rerank_rank,
-    })
+    }
+    metadata = {key: value for key, value in metadata.items() if value is not None}
     return Citation(
         citation_number=number,
         document_id=result.document_id,
