@@ -158,9 +158,7 @@ async def test_retrieval_adapter_uses_existing_service_identity_and_citations():
     assert output.citations == (Citation(
         citation_number=1, document_id="doc", document_version_id="version", chunk_id="chunk",
         page_numbers=(2,), section_reference=("Policy",), source_ref="docs/policy.pdf",
-        source_metadata={"origin": "handbook", "knowledge_base_id": "kb", "score": 0.9,
-                         "dense_score": 0.9, "lexical_score": None, "dense_rank": 1,
-                         "lexical_rank": None, "fused_score": None, "rerank_rank": None},
+        source_metadata={"score": 0.9, "dense_score": 0.9, "dense_rank": 1},
         relevance_score=0.9,
     ),)
 
