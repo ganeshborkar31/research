@@ -2,7 +2,7 @@ import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -133,7 +133,7 @@ class ChatService:
                     ChatMessage.user_id == user_id,
                 )
             )
-            .order_by(ChatMessage.created_at.asc())
+            .order_by(ChatMessage.sequence_number.asc())
             .limit(limit)
             .offset(offset)
         )
@@ -159,7 +159,7 @@ class ChatService:
                     ChatMessage.user_id == chat.user_id,
                 )
             )
-            .order_by(ChatMessage.created_at.asc())
+            .order_by(ChatMessage.sequence_number.asc())
             .limit(30)
         )
         history_result = await db.execute(history_query)
@@ -178,17 +178,21 @@ class ChatService:
             retrieval_context=retrieval_context,
         )
 
+        first_sequence = await _allocate_message_sequences(db, chat, count=2)
+
         user_message = ChatMessage(
             chat_id=chat.id,
             user_id=chat.user_id,
             role="user",
             content=user_content,
+            sequence_number=first_sequence,
         )
         assistant_message = ChatMessage(
             chat_id=chat.id,
             user_id=chat.user_id,
             role="assistant",
             content=assistant_reply,
+            sequence_number=first_sequence + 1,
         )
         db.add(user_message)
         db.add(assistant_message)
@@ -257,17 +261,20 @@ class ChatService:
             yield chunk
 
         assistant_reply = "".join(chunks).strip()
+        first_sequence = await _allocate_message_sequences(db, chat, count=2)
         user_message = ChatMessage(
             chat_id=chat.id,
             user_id=chat.user_id,
             role="user",
             content=user_content,
+            sequence_number=first_sequence,
         )
         assistant_message = ChatMessage(
             chat_id=chat.id,
             user_id=chat.user_id,
             role="assistant",
             content=assistant_reply,
+            sequence_number=first_sequence + 1,
         )
         db.add(user_message)
         db.add(assistant_message)
@@ -353,6 +360,24 @@ def _derive_title_from_first_message(message: str) -> str:
     if len(clean) <= 50:
         return clean or "New Chat"
     return clean[:47].rstrip() + "..."
+
+
+async def _allocate_message_sequences(db: AsyncSession, chat: ChatSession, *, count: int) -> int:
+    result = await db.execute(
+        update(ChatSession)
+        .where(
+            ChatSession.id == chat.id,
+            ChatSession.user_id == chat.user_id,
+            ChatSession.status == "active",
+        )
+        .values(next_message_sequence=ChatSession.next_message_sequence + count)
+        .returning(ChatSession.next_message_sequence)
+    )
+    next_sequence = result.scalar_one_or_none()
+    if next_sequence is None:
+        raise ValueError("Chat is no longer available.")
+    chat.next_message_sequence = next_sequence
+    return next_sequence - count
 
 
 _chat_service: ChatService | None = None
