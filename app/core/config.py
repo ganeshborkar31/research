@@ -72,12 +72,6 @@ class Settings(BaseSettings):
     use_langgraph_chat: bool = False
 
     # -------------------------
-    # Support Agent
-    # -------------------------
-    support_policy_path: str | None = None
-    support_kb_user_fallback: str = "__support__"
-
-    # -------------------------
     # Voice Providers
     # -------------------------
     twilio_account_sid: str | None = None

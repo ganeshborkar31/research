@@ -59,9 +59,8 @@ The OAuth2 form login expects `username_or_email` and `password`.
 6. **Search chat documents** to verify vector retrieval.
 7. **Send chat message** to exercise the general chat RAG pipeline.
 8. **List chat messages** to inspect persisted conversation history.
-9. **Support → Support chat** to exercise support policy and optional knowledge-base retrieval. Its support `chat_id` is saved as `conversation_id`.
-10. Use the WebSocket requests for streaming behavior.
-11. Run Twilio callback requests only when the backend is configured for Twilio or when callback behavior is being tested with stubs.
+9. Use the WebSocket requests for streaming behavior.
+10. Run Twilio callback requests only when the backend is configured for Twilio or when callback behavior is being tested with stubs.
 
 ## Document ingestion and retrieval
 
@@ -78,22 +77,13 @@ After ingestion, run **Search chat documents**. Its query parameters are:
 
 Chat messages are sent through `POST /api/v1/chats/{chat_id}/messages`. The response contains `chat_id`, `user_message`, and `assistant_message`.
 
-## Support and voice
-
-The support REST routes are:
-
-- `POST /api/v1/support/chat`: `message` is required; `chat_id` and `kb_user_id` are optional.
-- `POST /api/v1/support/voice`: accepts `text` or base64 `audio_b64`; `mime_type`, `return_audio`, `chat_id`, and `kb_user_id` are supported.
-
 The live voice agent list is available at `GET /api/v1/live-chat/voice/agents`.
 
 ## WebSocket testing
 
-The collection contains four WebSocket items:
+The collection contains two WebSocket items:
 
 - `/api/v1/chats/{chat_id}/ws`
-- `/api/v1/support/chat/ws`
-- `/api/v1/support/voice/ws`
 - `/api/v1/live-chat/voice/ws`
 
 Postman can import the `ws://` URLs and the Authorization header. Open a request, connect, and send JSON frames from the WebSocket message panel. Collection item bodies provide first-frame examples for reference; Postman does not automatically send them as frames on connection.
@@ -115,28 +105,6 @@ Expected sequence:
 ```
 
 The server may send multiple `chunk` messages. Empty messages produce an `error` event. Unauthorized and missing-chat closes use codes 4401 and 4404.
-
-### Support chat WebSocket
-
-Connect to `/api/v1/support/chat/ws`. The optional `chat_id` query parameter resumes a support session. Send:
-
-```json
-{"type":"input.text","text":"How do I upload a document?"}
-```
-
-The server sends `session.started`, then `response.started`, zero or more `llm.chunk`, and `response.done`. It also supports `ping`/ `pong` and `session.stop`.
-
-### Support voice WebSocket
-
-Connect to `/api/v1/support/voice/ws`. Supported frames are:
-
-- `session.start` with optional `session_id`
-- `input.text` with `text`
-- `input.audio` with base64 `audio_b64` and `mime_type`
-- `ping`
-- `session.stop`
-
-Text responses use `response.started`, `llm.chunk`, optional `tts.chunk`, and `response.done`. Audio responses first include `stt.final`.
 
 ### Live voice MCP WebSocket
 
@@ -172,7 +140,7 @@ The collection includes the application routes, FastAPI's generated `/openapi.js
 The collection test scripts:
 
 - check implemented status codes and JSON content types where applicable;
-- save chat, document, support conversation, and user IDs;
+- save chat, document, and user IDs;
 - save JWT access claims and refresh cookies after authentication;
 - clear stored tokens after logout.
 

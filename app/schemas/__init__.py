@@ -28,12 +28,6 @@ from app.schemas.mcp_voice import MCPAgentSetIn, MCPClientEvent, MCPInputAudioIn
 from app.schemas.user_api import UserDeleteOut, UserOut, UserUpdate
 from app.schemas.user_memory import UserDocumentIn, UserHistoryEventIn, UserMemoryHit
 from app.schemas.voice_agent import VoiceAgentProfileOut
-from app.schemas.support_agent import (
-    SupportChatRequest,
-    SupportChatResponse,
-    SupportVoiceRequest,
-    SupportVoiceResponse,
-)
 
 __all__ = [
     "SignupRequest",
@@ -66,8 +60,4 @@ __all__ = [
     "UserDocumentIn",
     "UserHistoryEventIn",
     "UserMemoryHit",
-    "SupportChatRequest",
-    "SupportChatResponse",
-    "SupportVoiceRequest",
-    "SupportVoiceResponse",
 ]

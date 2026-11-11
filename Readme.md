@@ -134,24 +134,6 @@ docker compose run --rm --build migrate alembic revision --autogenerate -m "add 
 - Docs: <http://localhost:8000/docs>
 - Metrics: <http://localhost:8000/metrics>
 
-## Support Agent
-
-- Chat: `POST /api/v1/support/chat`
-- Voice: `POST /api/v1/support/voice`
-- Chat stream: `ws://localhost:8000/api/v1/support/chat/ws?token=<access_token>`
-- Voice stream: `ws://localhost:8000/api/v1/support/voice/ws?token=<access_token>`
-
-Notes:
-
-- Requires a valid access token; `user_id` is derived from the JWT.
-- Support chats are stored in the database; clients should send `chat_id` to continue a thread.
-- Do not send `history` in the request; history is loaded from the database.
-- Policies are loaded from `config/support_policies.json` if present.
-- Sample policy file: `config/support_policies.sample.json`.
-- Streaming endpoints use the MCP-style event schema (`input.text`, `input.audio`, `session.start`, `session.stop`).
-- Send `chat_id` as a query param or via `session.start.session_id` to resume a support thread.
-
-
 ## SMTP OTP Setup
 
 Use these `.env` variables for real email OTP dispatch:

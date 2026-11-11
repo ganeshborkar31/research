@@ -116,7 +116,7 @@ async def twilio_voice_incoming(
     action_url = str(request.url_for("twilio_voice_respond").include_query_params(session_id=call_sid))
 
     twiml = service.voice_gather_twiml(
-        say_text="Welcome to Knowledge AI support. How can I help you today?",
+        say_text="Welcome to Knowledge AI. How can I help you today?",
         action_url=action_url,
     )
     return Response(content=twiml, media_type="application/xml")
@@ -169,7 +169,7 @@ async def twilio_outbound_call_twiml(
     service = get_twilio_service()
     action_url = str(request.url_for("twilio_voice_respond").include_query_params(session_id=session_id))
     twiml = service.voice_gather_twiml(
-        say_text=welcome_message or "Hello, this is Knowledge AI support. How can I help you?",
+        say_text=welcome_message or "Hello, this is Knowledge AI. How can I help you?",
         action_url=action_url,
     )
     return Response(content=twiml, media_type="application/xml")
