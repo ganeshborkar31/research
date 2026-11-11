@@ -3,7 +3,7 @@ from typing import TypedDict
 
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.infra.llm.gemini_client import GeminiClient
+from app.agent.llm.gemini_client import GeminiClient
 
 
 class _ChatState(TypedDict, total=False):

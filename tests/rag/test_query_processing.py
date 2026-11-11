@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
-from app.infra.vector_stores.qdrant import EmptyRetrievalScope, QdrantVectorStore
+from app.rag.stores.qdrant import EmptyRetrievalScope, QdrantVectorStore
 from app.rag.retrieval.dependencies import build_retrieval_request_preparer
 from app.rag.models.retrieval import (
     RetrievalQueryContext,

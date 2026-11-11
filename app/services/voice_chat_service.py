@@ -4,7 +4,7 @@ from collections import defaultdict, deque
 from collections.abc import AsyncIterator
 
 from app.core.config import get_settings
-from app.infra.llm import GeminiClient, LangChainChatGateway, LangGraphChatGateway
+from app.agent.llm.compat import GeminiClient, LangChainChatGateway, LangGraphChatGateway
 from app.infra.voice import resolve_speech_to_text_provider, resolve_text_to_speech_provider
 from app.schemas.voice_agent import VoiceAgentProfileOut
 from app.services.ports import ChatRuntimePort, SpeechToTextPort, TextToSpeechPort

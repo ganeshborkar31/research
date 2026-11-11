@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -91,4 +92,95 @@ async def test_provider_failure_after_output_keeps_partial_response_and_one_term
     assert response.status.value == "incomplete"
     assert response.assistant_output == "partial "
     assert "sensitive" not in response.error.message
+
+
+@pytest.mark.asyncio
+async def test_duplicate_pending_request_does_not_invoke_model_again():
+    class DuplicateConversations(Conversations):
+        async def begin_turn(self, *_args, **_kwargs):
+            return SimpleNamespace(user_message=SimpleNamespace(id="user-message-1"), already_started=True)
+
+        async def list_messages(self, *_args, **_kwargs):
+            return []
+
+    class CountingModel(StreamingModel):
+        def __init__(self):
+            self.calls = 0
+
+        async def generate(self, *_args, **_kwargs):
+            self.calls += 1
+            return await super().generate(*_args, **_kwargs)
+
+    model = CountingModel()
+    runtime = AgentRuntime(model_executor=ModelExecutor(model),
+                           tool_executor=ToolExecutor(ToolRegistry()),
+                           conversations=DuplicateConversations())
+    response = await runtime.execute(AgentRequest(message="Hi"), make_context())
+
+    assert response.status.value == "failed"
+    assert response.error.code == "duplicate_execution"
+    assert model.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_runtime_timeout_is_normalized_and_concurrent_requests_keep_state_isolated():
+    class DelayedModel(StreamingModel):
+        async def generate(self, messages, *, options=None):
+            await asyncio.sleep(0.02)
+            return ChatResponse(messages[-1].content, self.model, TokenUsage())
+
+    model = DelayedModel()
+    runtime = AgentRuntime(model_executor=ModelExecutor(model),
+                           tool_executor=ToolExecutor(ToolRegistry()),
+                           conversations=Conversations())
+    first_context = make_context()
+    second_context = ExecutionContext(
+        user=AuthenticatedUserContext("user-2"), session=object(), request_id="request-2",
+    )
+    first, second = await asyncio.gather(
+        runtime.execute(AgentRequest(message="first"), first_context),
+        runtime.execute(AgentRequest(message="second"), second_context),
+    )
+    assert first.assistant_output == "first"
+    assert second.assistant_output == "second"
+    assert first.request_id == "request-1"
+    assert second.request_id == "request-2"
+
+    timed_runtime = AgentRuntime(
+        model_executor=ModelExecutor(DelayedModel()),
+        tool_executor=ToolExecutor(ToolRegistry()),
+        conversations=Conversations(),
+        config=RuntimeConfig(timeout_seconds=0.001),
+    )
+    timed = await timed_runtime.execute(AgentRequest(message="slow"), make_context())
+    assert timed.status.value == "failed"
+    assert timed.error.code == "execution_timeout"
+
+
+@pytest.mark.asyncio
+async def test_closing_stream_cancels_provider_generation():
+    class CancellableModel(StreamingModel):
+        def __init__(self):
+            self.cancelled = False
+            self.wait = asyncio.Event()
+
+        async def stream(self, *_args, **_kwargs):
+            yield ChatChunk("partial")
+            try:
+                await self.wait.wait()
+            except asyncio.CancelledError:
+                self.cancelled = True
+                raise
+
+    model = CancellableModel()
+    runtime = AgentRuntime(model_executor=ModelExecutor(model),
+                           tool_executor=ToolExecutor(ToolRegistry()),
+                           conversations=Conversations())
+    events = runtime.stream(AgentRequest(message="Hi"), make_context())
+    async for event in events:
+        if event.event_type == "message.delta":
+            await events.aclose()
+            break
+
+    assert model.cancelled
 

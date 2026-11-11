@@ -5,7 +5,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda
 
-from app.infra.llm.gemini_client import GeminiClient
+from app.agent.llm.gemini_client import GeminiClient
 
 
 class LangChainChatGateway:

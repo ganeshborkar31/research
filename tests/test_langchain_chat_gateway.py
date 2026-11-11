@@ -1,6 +1,6 @@
 import pytest
 
-from app.infra.llm.langchain_chat import LangChainChatGateway
+from app.agent.llm.compat.langchain_chat import LangChainChatGateway
 
 
 class FakeGeminiClient:

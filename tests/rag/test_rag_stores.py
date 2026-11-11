@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.infra.vector_stores.qdrant import QdrantVectorStore
+from app.rag.stores.qdrant import QdrantVectorStore
 from app.rag.ports.vector_store import VectorRecord
 
 

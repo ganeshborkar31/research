@@ -20,7 +20,7 @@ from app.rag.retrieval.query_processor import (
     RetrievalRequestPreparer,
 )
 from app.rag.dependencies import build_embedding_service
-from app.infra.vector_stores.qdrant import QdrantVectorStore
+from app.rag.stores.qdrant import QdrantVectorStore
 from app.rag.retrieval.semantic import DenseRetriever
 from app.rag.retrieval.lexical import LexicalRetriever
 from app.rag.retrieval.hybrid import HybridRetriever

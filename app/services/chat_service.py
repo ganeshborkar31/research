@@ -6,7 +6,7 @@ from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.infra.llm import GeminiClient, LangChainChatGateway, LangGraphChatGateway
+from app.agent.llm.compat import GeminiClient, LangChainChatGateway, LangGraphChatGateway
 from app.models.chat import ChatMessage, ChatSession
 from app.schemas.user_memory import UserHistoryEventIn
 from app.services.ports import ChatRuntimePort, UserMemoryPort

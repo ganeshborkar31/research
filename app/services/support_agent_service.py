@@ -9,7 +9,7 @@ from langchain_core.tools import tool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.infra.llm import GeminiClient, LangChainChatGateway, LangGraphChatGateway
+from app.agent.llm.compat import GeminiClient, LangChainChatGateway, LangGraphChatGateway
 from app.schemas.support_agent import SupportChatResponse
 from app.schemas.user_memory import UserHistoryEventIn
 from app.services.support_chat_store import SupportChatStore

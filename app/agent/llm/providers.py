@@ -163,7 +163,7 @@ def build_chat_model(
     if provider == "gemini":
         # Reuse the existing provider transport only. Prompt construction,
         # persistence, retrieval, and orchestration remain in app.agent.
-        from app.infra.llm.gemini_client import GeminiClient
+        from app.agent.llm.gemini_client import GeminiClient
 
         return GeminiChatModel(
             client=GeminiClient(

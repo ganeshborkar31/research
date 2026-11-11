@@ -26,6 +26,20 @@ def test_provider_selection_and_model_configuration():
         build_chat_model(settings(), config=ChatModelConfig(provider="unknown"))
 
 
+def test_default_gemini_provider_uses_transport_without_experimental_gateway(monkeypatch):
+    class Client:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setattr("app.agent.llm.gemini_client.GeminiClient", Client)
+    model = build_chat_model(settings(gemini_api_key="test-key"))
+    assert isinstance(model, GeminiChatModel)
+    assert model.model == "gemini-2.5-flash"
+    assert model.client.kwargs == {
+        "api_key": "test-key", "model": "gemini-2.5-flash", "timeout_seconds": 30,
+    }
+
+
 def test_openai_selection_requires_key():
     with pytest.raises(ChatProviderSelectionError, match="OPENAI_API_KEY"):
         build_chat_model(settings(), config=ChatModelConfig(provider="openai"))

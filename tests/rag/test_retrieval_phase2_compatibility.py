@@ -6,9 +6,20 @@ import math
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from qdrant_client.http import models
 
-from app.infra.vector_stores.qdrant import QdrantVectorStore
+from app.agent.llm.chat_model import ChatMessage, ChatResponse, TokenUsage
+from app.agent.models import AgentRequest, ExecutionStatus
+from app.agent.persistence import ConversationStore
+from app.agent.retrieval_tool import build_default_tool_registry
+from app.agent.runtime import (
+    AgentRuntime, AuthenticatedUserContext, ExecutionContext, ModelExecutor, ToolExecutor,
+)
+from app.db.base import Base
+from app.models import User
+from app.models.rag_document import RagDocument, RagDocumentVersion
+from app.rag.stores.qdrant import QdrantVectorStore
 from app.rag.embeddings.base import EmbeddingConfig
 from app.rag.embeddings.service import EmbeddingService
 from app.rag.models.retrieval import RetrievalRequest, RetrievalStrategyName
@@ -198,3 +209,98 @@ async def test_foreign_kb_and_document_id_cannot_expand_scope_or_reach_qdrant():
             session=ScopedSession("user-a", []),
         )
     assert qdrant.search_filters == []
+
+
+@pytest.mark.asyncio
+async def test_production_agent_uses_phase2_points_through_phase3_retrieval_and_preserves_citations():
+    """Exercise the agent adapter, real RetrievalService and production persistence together."""
+
+    class RecordingModel:
+        model = "agent-fixture"
+
+        def __init__(self):
+            self.calls = []
+
+        async def generate(self, messages, *, options=None):
+            self.calls.append((messages, options))
+            assert any("Orchid care guide" in message.content for message in messages)
+            return ChatResponse("Water weekly [1]. Unsupported [2].", self.model,
+                                TokenUsage(12, 6, 18))
+
+        async def stream(self, messages, *, options=None):
+            if False:
+                yield
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as db:
+        db.add(User(id="agent-rag-user", username="agent-rag", email="agent-rag@example.test",
+                    password_hash="x"))
+        db.add(RagDocument(
+            id="agent-rag-doc", user_id="agent-rag-user", knowledge_base_id="agent-rag-kb",
+            source_ref="orchid.pdf", active_version_id="agent-rag-v1", status="active",
+        ))
+        db.add(RagDocumentVersion(
+            id="agent-rag-v1", document_id="agent-rag-doc", user_id="agent-rag-user",
+            version_number=1, source_ref="orchid.pdf", content_checksum="a" * 64, status="indexed",
+        ))
+        await db.commit()
+
+    provider = SharedProvider()
+    points = [phase2_point(
+        user="agent-rag-user", kb="agent-rag-kb", document="agent-rag-doc",
+        version="agent-rag-v1", chunk="agent-rag-chunk", content="Orchid care guide",
+        source="orchid.pdf", page=3,
+    )]
+    qdrant = Phase2Qdrant(points)
+    service = RetrievalService(
+        preparer=RetrievalRequestPreparer(),
+        strategies={RetrievalStrategyName.DENSE: DenseRetriever(
+            embeddings=EmbeddingService(provider, EmbeddingConfig(
+                provider="test", model=provider.model, dimensions=3, retry_backoff_seconds=0,
+            )),
+            vector_store=QdrantVectorStore(client=qdrant, collection_name="rag_chunks_v1", vector_size=3),
+        )},
+        context_assembler=ContextAssembler(),
+    )
+    model = RecordingModel()
+    runtime = AgentRuntime(
+        model_executor=ModelExecutor(model),
+        tool_executor=ToolExecutor(build_default_tool_registry(retrieval_service=service)),
+        conversations=ConversationStore(),
+    )
+    try:
+        async with factory() as db:
+            context = ExecutionContext(
+                user=AuthenticatedUserContext("agent-rag-user"), session=db, request_id="agent-rag-1",
+            )
+            response = await runtime.execute(AgentRequest(
+                message="How should I care for an orchid?", knowledge_base_id="agent-rag-kb",
+            ), context)
+            assert response.status == ExecutionStatus.COMPLETED
+            assert response.assistant_output == "Water weekly [1]. Unsupported ."
+            assert len(response.citations) == 1
+            assert response.citations[0].chunk_id == "agent-rag-chunk"
+            assert response.citations[0].source_ref == "orchid.pdf"
+            assert response.token_usage.total_tokens == 18
+            assert len(model.calls) == 1
+            conversation_id = response.conversation_id
+
+            # Retries for a completed request return the stored answer without a
+            # second provider call.
+            replay = await runtime.execute(AgentRequest(
+                message="How should I care for an orchid?", conversation_id=conversation_id,
+                knowledge_base_id="agent-rag-kb",
+            ), context)
+            assert replay.assistant_output == response.assistant_output
+            assert len(model.calls) == 1
+
+            history = await ConversationStore().list_messages(
+                db, user_id="agent-rag-user", conversation_id=conversation_id,
+            )
+            assert [message.role for message in history] == ["user", "assistant"]
+            assert history[-1].content == response.assistant_output
+    finally:
+        await engine.dispose()

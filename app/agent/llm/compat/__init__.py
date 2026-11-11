@@ -1,8 +1,8 @@
-from app.infra.llm.gemini_client import GeminiClient
-from app.infra.llm.langchain_chat import LangChainChatGateway
+from app.agent.llm.gemini_client import GeminiClient
+from app.agent.llm.compat.langchain_chat import LangChainChatGateway
 
 try:
-    from app.infra.llm.langgraph_chat import LangGraphChatGateway
+    from app.agent.llm.compat.langgraph_chat import LangGraphChatGateway
 except Exception:  # pragma: no cover - optional dependency at runtime
     LangGraphChatGateway = None  # type: ignore[assignment]
 

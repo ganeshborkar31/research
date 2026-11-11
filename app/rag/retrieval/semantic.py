@@ -12,7 +12,7 @@ from app.rag.models.retrieval import (
     RetrievalStrategyName,
 )
 from app.rag.ports.vector_store import DenseSearchPort
-from app.infra.vector_stores.qdrant import EmptyRetrievalScope, QdrantVectorStore, VectorStoreError
+from app.rag.stores.qdrant import EmptyRetrievalScope, QdrantVectorStore, VectorStoreError
 
 
 class DenseRetrievalError(RuntimeError):
