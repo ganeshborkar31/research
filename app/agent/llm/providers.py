@@ -161,8 +161,17 @@ def build_chat_model(
     if custom_builder is not None:
         return custom_builder(settings, config)
     if provider == "gemini":
-        raise ChatProviderSelectionError(
-            "Register a Gemini adapter builder for the agent LLM package"
+        # Reuse the existing provider transport only. Prompt construction,
+        # persistence, retrieval, and orchestration remain in app.agent.
+        from app.infra.llm.gemini_client import GeminiClient
+
+        return GeminiChatModel(
+            client=GeminiClient(
+                api_key=settings.gemini_api_key,
+                model=model,
+                timeout_seconds=int(timeout),
+            ),
+            model=model,
         )
     if provider == "openai":
         if not settings.openai_api_key:

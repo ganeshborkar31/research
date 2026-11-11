@@ -349,6 +349,10 @@ class AgentRuntime:
                 return AgentResponse(request_id=context.request_id, conversation_id=conversation_id,
                                      message_id=str(existing_assistant.id), status=ExecutionStatus.COMPLETED,
                                      assistant_output=existing_assistant.content, finish_reason=FinishReason.STOP)
+            # The same request is already in flight (or its earlier attempt did
+            # not finish). Do not call tools or the provider a second time.
+            return self._error(context.request_id, conversation_id, "duplicate_execution",
+                               ErrorCategory.CONFLICT, True)
         previous = await self.conversations.list_messages(
             context.session, user_id=context.user.user_id, conversation_id=conversation_id,
             limit=self.config.max_history_messages + 1,
