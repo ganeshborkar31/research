@@ -16,7 +16,7 @@ from app.agent.llm.chat_model import (
 
 
 class GeminiChatModel:
-    """Adapter over the repository's existing Gemini REST integration."""
+    """Production adapter over the official Google Gen AI async client."""
 
     capabilities = ChatCapabilities(streaming=True, structured_output=False)
 
@@ -25,33 +25,73 @@ class GeminiChatModel:
         self.model = model
 
     @staticmethod
-    def _split(messages: Sequence[ChatMessage]) -> tuple[str, str, list[dict[str, str]]]:
+    def _request(messages: Sequence[ChatMessage], options: GenerationOptions | None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         system = "\n\n".join(m.content for m in messages if m.role == "system")
         conversation = [m for m in messages if m.role != "system"]
         if not conversation:
             raise ValueError("at least one user or assistant message is required")
-        latest = conversation[-1]
-        history = [{"role": m.role, "content": m.content} for m in conversation[:-1]]
-        return system, latest.content, history
+        contents = [
+            {"role": "model" if message.role == "assistant" else "user",
+             "parts": [{"text": message.content}]}
+            for message in conversation
+        ]
+        config: dict[str, Any] = {"system_instruction": system} if system else {}
+        if options is not None:
+            if options.temperature is not None:
+                config["temperature"] = options.temperature
+            if options.max_tokens is not None:
+                config["max_output_tokens"] = options.max_tokens
+            if options.stop is not None:
+                config["stop_sequences"] = list(options.stop)
+        return contents, config
+
+    @staticmethod
+    def _usage(response: Any) -> TokenUsage:
+        metadata = getattr(response, "usage_metadata", None)
+        if metadata is None:
+            return TokenUsage()
+        return normalize_usage({
+            "input_tokens": getattr(metadata, "prompt_token_count", None),
+            "output_tokens": getattr(metadata, "candidates_token_count", None),
+            "total_tokens": getattr(metadata, "total_token_count", None),
+        })
 
     async def generate(self, messages: Sequence[ChatMessage], *, options: GenerationOptions | None = None) -> ChatResponse:
-        system, user, history = self._split(messages)
+        contents, config = self._request(messages, options)
         try:
-            text = await self.client.generate_reply(system_prompt=system, user_message=user, history=history)
-            return ChatResponse(content=text, model=self.model)
+            response = await self.client.aio.models.generate_content(
+                model=self.model, contents=contents, config=config or None,
+            )
+            return ChatResponse(content=response.text or "", model=self.model,
+                                usage=self._usage(response), raw=response)
         except Exception as exc:
             raise ChatProviderError("Gemini generation failed") from exc
 
     async def stream(self, messages: Sequence[ChatMessage], *, options: GenerationOptions | None = None) -> AsyncIterator[ChatChunk]:
-        system, user, history = self._split(messages)
+        contents, config = self._request(messages, options)
         try:
-            async for chunk in self.client.stream_reply(system_prompt=system, user_message=user, history=history):
-                yield ChatChunk(content=chunk)
+            async for response in self.client.aio.models.generate_content_stream(
+                model=self.model, contents=contents, config=config or None,
+            ):
+                content = response.text or ""
+                if content:
+                    yield ChatChunk(content=content, usage=self._usage(response))
         except Exception as exc:
             raise ChatProviderError("Gemini streaming failed") from exc
 
     async def generate_structured(self, messages: Sequence[ChatMessage], schema: Any, *, options: GenerationOptions | None = None) -> Any:
         raise NotImplementedError("Gemini structured output is not exposed by the configured adapter")
+
+
+def _build_gemini_client(*, api_key: str, timeout_seconds: float) -> Any:
+    try:
+        from google import genai
+    except ImportError as exc:
+        raise ChatProviderSelectionError("google-genai is required for the Gemini chat provider") from exc
+    return genai.Client(
+        api_key=api_key,
+        http_options={"timeout": int(timeout_seconds * 1000)},
+    )
 
 
 class OpenAIChatModel:
@@ -161,16 +201,10 @@ def build_chat_model(
     if custom_builder is not None:
         return custom_builder(settings, config)
     if provider == "gemini":
-        # Reuse the existing provider transport only. Prompt construction,
-        # persistence, retrieval, and orchestration remain in app.agent.
-        from app.agent.llm.gemini_client import GeminiClient
-
+        if not settings.gemini_api_key:
+            raise ChatProviderSelectionError("GEMINI_API_KEY is required for the Gemini chat provider")
         return GeminiChatModel(
-            client=GeminiClient(
-                api_key=settings.gemini_api_key,
-                model=model,
-                timeout_seconds=int(timeout),
-            ),
+            client=_build_gemini_client(api_key=settings.gemini_api_key, timeout_seconds=timeout),
             model=model,
         )
     if provider == "openai":
