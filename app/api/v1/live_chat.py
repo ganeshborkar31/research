@@ -10,7 +10,7 @@ from app.api.v1.dependencies import (
 )
 from app.schemas.mcp_voice import MCPAgentSetIn, MCPClientEvent, MCPInputAudioIn, MCPInputTextIn, MCPSessionStartIn
 from app.schemas.voice_agent import VoiceAgentProfileOut
-from app.services.voice_chat_service import get_voice_chat_service
+from app.agent.voice_runtime import get_voice_chat_service
 
 
 router = APIRouter()

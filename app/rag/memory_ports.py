@@ -1,27 +1,6 @@
-from collections.abc import AsyncIterator
 from typing import Protocol
 
 from app.schemas.user_memory import UserHistoryEventIn, UserMemoryHit
-
-
-class ChatRuntimePort(Protocol):
-    async def generate_reply(
-        self,
-        *,
-        system_prompt: str,
-        user_message: str,
-        history: list[dict[str, str]],
-        retrieval_context: str,
-    ) -> str: ...
-
-    async def stream_reply(
-        self,
-        *,
-        system_prompt: str,
-        user_message: str,
-        history: list[dict[str, str]],
-        retrieval_context: str,
-    ) -> AsyncIterator[str]: ...
 
 
 class UserMemoryPort(Protocol):

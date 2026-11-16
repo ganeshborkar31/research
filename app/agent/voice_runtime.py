@@ -7,8 +7,9 @@ from app.core.config import get_settings
 from app.agent.llm.compat import GeminiClient, LangChainChatGateway, LangGraphChatGateway
 from app.infra.voice import resolve_speech_to_text_provider, resolve_text_to_speech_provider
 from app.schemas.voice_agent import VoiceAgentProfileOut
-from app.services.ports import ChatRuntimePort, SpeechToTextPort, TextToSpeechPort
-from app.services.voice_agent_registry import (
+from app.agent.ports import ChatRuntimePort
+from app.services.ports import SpeechToTextPort, TextToSpeechPort
+from app.agent.voice_registry import (
     VoiceAgentProfile,
     list_voice_agent_profiles,
     resolve_voice_agent_profile,

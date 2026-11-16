@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.schemas.user_memory import UserDocumentIn
-from app.services.user_vector_store import UserVectorStore
+from app.rag.user_vector_store import UserVectorStore
 
 
 class FakeQdrantClient:

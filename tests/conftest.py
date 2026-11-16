@@ -19,7 +19,7 @@ async def client(monkeypatch):
     monkeypatch.setenv("JWT_SECRET_KEY", "test-secret")
 
     from app.core.config import get_settings
-    import app.services.voice_chat_service as voice_chat_service_module
+    import app.agent.voice_runtime as voice_chat_service_module
     from app.main import app
 
     get_settings.cache_clear()

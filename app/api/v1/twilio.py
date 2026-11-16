@@ -14,7 +14,7 @@ from app.services.twilio_service import (
     TwilioRequestError,
     get_twilio_service,
 )
-from app.services.voice_chat_service import get_voice_chat_service
+from app.agent.voice_runtime import get_voice_chat_service
 
 
 router = APIRouter()

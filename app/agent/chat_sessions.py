@@ -9,8 +9,12 @@ from app.core.config import get_settings
 from app.agent.llm.compat import GeminiClient, LangChainChatGateway, LangGraphChatGateway
 from app.models.chat import ChatMessage, ChatSession
 from app.schemas.user_memory import UserHistoryEventIn
-from app.services.ports import ChatRuntimePort, UserMemoryPort
-from app.services.user_vector_store import UserVectorStore
+from app.agent.ports import ChatRuntimePort
+from app.rag.memory_ports import UserMemoryPort
+from app.rag.user_vector_store import UserVectorStore
+from app.models.rag_document import RagDocument, RagDocumentVersion
+from app.rag.models.retrieval import RetrievalRequest
+from app.rag.retrieval.dependencies import get_retrieval_service
 
 
 SYSTEM_PROMPT = (
@@ -169,6 +173,7 @@ class ChatService:
         history = [{"role": m.role, "content": m.content} for m in history_messages]
 
         retrieval_context = await self._build_retrieval_context(
+            db=db,
             user_id=chat.user_id,
             chat_id=chat.id,
             query=user_content,
@@ -247,6 +252,7 @@ class ChatService:
         history_messages = list(history_result.scalars().all())
         history = [{"role": m.role, "content": m.content} for m in history_messages]
         retrieval_context = await self._build_retrieval_context(
+            db=db,
             user_id=chat.user_id,
             chat_id=chat.id,
             query=user_content,
@@ -302,18 +308,53 @@ class ChatService:
     async def _build_retrieval_context(
         self,
         *,
+        db: AsyncSession,
         user_id: str,
         chat_id: str,
         query: str,
     ) -> str:
-        try:
-            doc_hits = await self._vector_store.search_user_documents(
-                user_id=user_id,
-                query=query,
-                chat_id=chat_id,
-                include_global=True,
-                limit=3,
+        document_rows = await db.execute(
+            select(RagDocument.id, RagDocument.knowledge_base_id)
+            .join(
+                RagDocumentVersion,
+                and_(
+                    RagDocumentVersion.id == RagDocument.active_version_id,
+                    RagDocumentVersion.document_id == RagDocument.id,
+                ),
             )
+            .where(
+                RagDocument.user_id == user_id,
+                RagDocument.status == "active",
+                RagDocumentVersion.status == "indexed",
+                RagDocumentVersion.metadata_json["chat_id"].as_string() == chat_id,
+            )
+            .limit(500)
+        )
+        scopes: dict[str, list[str]] = {}
+        for document_id, knowledge_base_id in document_rows.all():
+            scopes.setdefault(knowledge_base_id, []).append(document_id)
+
+        snippets: list[str] = []
+        if scopes:
+            try:
+                retrieval_service = get_retrieval_service()
+                for knowledge_base_id, document_ids in scopes.items():
+                    results, _ = await retrieval_service.retrieve(
+                        RetrievalRequest(
+                            query=query,
+                            knowledge_base_id=knowledge_base_id,
+                            document_ids=tuple(document_ids),
+                            top_k=3,
+                            metadata_filters={"chat_id": chat_id},
+                        ),
+                        authenticated_user_id=user_id,
+                        session=db,
+                    )
+                    snippets.extend(f"[doc] {hit.content}" for hit in results)
+            except Exception as exc:
+                logger.warning("RAG retrieval unavailable for chat_id=%s: %s", chat_id, exc)
+
+        try:
             history_hits = await self._vector_store.search_user_history(
                 user_id=user_id,
                 query=query,
@@ -324,9 +365,6 @@ class ChatService:
             logger.warning("Qdrant retrieval unavailable for user_id=%s: %s", user_id, exc)
             return "No retrieval context available."
 
-        snippets: list[str] = []
-        for hit in doc_hits:
-            snippets.append(f"[doc] {hit.content}")
         for hit in history_hits:
             snippets.append(f"[history] {hit.content}")
 

@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from app.services.voice_chat_service import VoiceChatService
+from app.agent.voice_runtime import VoiceChatService
 
 
 class _FakeRuntime:

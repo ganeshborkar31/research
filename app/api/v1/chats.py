@@ -1,4 +1,7 @@
+import asyncio
 import json
+from pathlib import Path
+from uuid import uuid4
 
 from fastapi import (
     APIRouter,
@@ -12,6 +15,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.dependencies import (
@@ -20,6 +24,17 @@ from app.api.v1.dependencies import (
     get_current_access_claims,
 )
 from app.db.session import get_db
+from app.core.config import get_settings
+from app.rag.ingestion.dependencies import build_ingestion_workflow
+from app.rag.ingestion.workflow import (
+    IngestionOwnershipError,
+    PermanentIngestionError,
+)
+from app.rag.models.retrieval import RetrievalRequest
+from app.rag.retrieval.dependencies import get_retrieval_service
+from app.rag.retrieval.query_processor import RetrievalAccessDenied, RetrievalQueryError
+from app.rag.retrieval.reranking import RerankingError
+from app.rag.retrieval.service import RetrievalService, RetrievalServiceError
 from app.schemas.chat_api import (
     ChatCreateRequest,
     ChatMessageCreateRequest,
@@ -34,8 +49,7 @@ from app.schemas.document_api import (
     ChatDocumentSearchResponse,
     ChatDocumentTextUploadRequest,
 )
-from app.services.chat_service import get_chat_service
-from app.services.document_service import get_document_service
+from app.agent.chat_sessions import get_chat_service
 
 
 router = APIRouter()
@@ -189,7 +203,7 @@ async def send_chat_message(
 @router.post(
     "/{chat_id}/documents/text",
     response_model=ChatDocumentIngestResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def upload_chat_document_text(
     chat_id: str,
@@ -207,37 +221,34 @@ async def upload_chat_document_text(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found.")
 
     try:
-        ingest_result = await get_document_service().ingest_text(
-            user_id=claims["sub"],
-            chat_id=chat_id,
-            content=payload.content,
-            source=payload.source,
-            metadata=payload.metadata,
-            document_id=payload.document_id,
+        staged_source = await _stage_source(
+            content=payload.content.encode("utf-8"), source_ref=payload.source_ref,
+            force_text=True,
         )
-    except ValueError as exc:
+        ingest_result = await _submit_document(
+            user_id=claims["sub"], chat_id=chat_id,
+            staged_source=staged_source, source_ref=payload.source_ref,
+            metadata=payload.metadata, document_id=payload.document_id,
+            idempotency_key=payload.idempotency_key,
+        )
+    except IngestionOwnershipError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="RAG scope not found.") from exc
+    except (ValueError, PermanentIngestionError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-    return ChatDocumentIngestResponse(
-        chat_id=chat_id,
-        document_id=ingest_result.document_id,
-        source=ingest_result.source,
-        chunk_count=ingest_result.chunk_count,
-        total_characters=ingest_result.total_characters,
-        created_at=ingest_result.created_at,
-    )
+    return _ingest_response(chat_id, payload.source_ref, ingest_result)
 
 
 @router.post(
     "/{chat_id}/documents/upload",
     response_model=ChatDocumentIngestResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def upload_chat_document_file(
     chat_id: str,
     file: UploadFile = File(...),
-    source: str | None = Form(default=None),
+    source_ref: str | None = Form(default=None, max_length=512),
     document_id: str | None = Form(default=None),
+    idempotency_key: str | None = Form(default=None, max_length=128),
     metadata_json: str | None = Form(default=None),
     db: AsyncSession = Depends(get_db),
     claims: dict = Depends(get_current_access_claims),
@@ -267,29 +278,24 @@ async def upload_chat_document_file(
             )
         metadata = parsed
 
-    file_bytes = await file.read()
+    file_bytes = await file.read(50 * 1024 * 1024 + 1)
+    if len(file_bytes) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Uploaded document is too large.")
+    source_label = (source_ref or file.filename or "uploaded_document").strip()
     try:
-        ingest_result = await get_document_service().ingest_file(
-            user_id=claims["sub"],
-            chat_id=chat_id,
-            file_bytes=file_bytes,
-            filename=file.filename,
-            content_type=file.content_type,
-            source=source,
-            metadata=metadata,
-            document_id=document_id,
+        staged_source = await _stage_source(content=file_bytes, source_ref=source_label)
+        ingest_result = await _submit_document(
+            user_id=claims["sub"], chat_id=chat_id,
+            staged_source=staged_source, source_ref=source_label,
+            metadata={**metadata, "filename": file.filename or source_label,
+                      "content_type": file.content_type or "application/octet-stream"},
+            document_id=document_id, idempotency_key=idempotency_key,
         )
-    except ValueError as exc:
+    except IngestionOwnershipError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="RAG scope not found.") from exc
+    except (ValueError, PermanentIngestionError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
-    return ChatDocumentIngestResponse(
-        chat_id=chat_id,
-        document_id=ingest_result.document_id,
-        source=ingest_result.source,
-        chunk_count=ingest_result.chunk_count,
-        total_characters=ingest_result.total_characters,
-        created_at=ingest_result.created_at,
-    )
+    return _ingest_response(chat_id, source_label, ingest_result)
 
 
 @router.get("/{chat_id}/documents/search", response_model=ChatDocumentSearchResponse)
@@ -297,9 +303,9 @@ async def search_chat_documents(
     chat_id: str,
     query: str = Query(min_length=1, max_length=500),
     limit: int = Query(default=5, ge=1, le=20),
-    include_global: bool = Query(default=True),
     db: AsyncSession = Depends(get_db),
     claims: dict = Depends(get_current_access_claims),
+    service: RetrievalService = Depends(get_retrieval_service),
 ) -> ChatDocumentSearchResponse:
     chat_service = get_chat_service()
     chat = await chat_service.get_chat(
@@ -311,21 +317,81 @@ async def search_chat_documents(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found.")
 
     try:
-        hits = await get_document_service().search_documents(
-            user_id=claims["sub"],
-            chat_id=chat_id,
-            query=query,
-            limit=limit,
-            include_global=include_global,
+        results, _ = await service.retrieve(
+            RetrievalRequest(
+                query=query,
+                knowledge_base_id=chat_id,
+                top_k=limit,
+                metadata_filters={"chat_id": chat_id},
+            ),
+            authenticated_user_id=claims["sub"], session=db,
         )
+    except RetrievalAccessDenied as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="RAG scope not found.") from exc
+    except RetrievalQueryError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except RerankingError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Requested reranking is unavailable.") from exc
+    except RetrievalServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Retrieval is temporarily unavailable.") from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     return ChatDocumentSearchResponse(
         chat_id=chat_id,
         query=query,
-        hits=[ChatDocumentSearchHit.model_validate(hit) for hit in hits],
+        hits=[ChatDocumentSearchHit(
+            point_id=result.chunk_id, score=result.score, content=result.content,
+            source=result.source_ref, metadata=result.metadata,
+        ) for result in results],
     )
+
+
+def _ingest_response(chat_id: str, source_ref: str,
+                     result: dict[str, str | int]) -> ChatDocumentIngestResponse:
+    return ChatDocumentIngestResponse(
+        chat_id=chat_id,
+        document_id=str(result["document_id"]),
+        document_version_id=str(result["document_version_id"]),
+        job_id=str(result["job_id"]), status=str(result["status"]),
+        version_number=int(result["version_number"]), source_ref=source_ref,
+    )
+
+
+async def _stage_source(*, content: bytes, source_ref: str, force_text: bool = False) -> str:
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document content cannot be empty.")
+    settings = get_settings()
+    root = Path(settings.rag_source_root).expanduser()
+    label = Path(source_ref.replace("\\", "/")).name
+    suffix = ".txt" if force_text else Path(label).suffix.lower()
+    supported = {".pdf", ".docx", ".pptx", ".xlsx", ".html", ".htm", ".md", ".markdown",
+                 ".txt", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
+    if suffix not in supported:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported document type.")
+    await asyncio.to_thread(root.mkdir, parents=True, exist_ok=True)
+    name = f"{uuid4().hex}{suffix}"
+    target = root / name
+    await asyncio.to_thread(target.write_bytes, content)
+    return name
+
+
+async def _submit_document(*, user_id: str, chat_id: str,
+                           staged_source: str, source_ref: str, metadata: dict,
+                           document_id: str | None, idempotency_key: str | None) -> dict[str, str | int]:
+    workflow = None
+    try:
+        workflow = build_ingestion_workflow()
+        return await run_in_threadpool(
+            # Chat-scoped documents share an implicit RAG namespace keyed by chat ID.
+            workflow.submit, user_id=user_id, knowledge_base_id=chat_id,
+            source_ref=staged_source, document_id=document_id,
+            idempotency_key=idempotency_key,
+            metadata={**metadata, "chat_id": chat_id, "source_ref": source_ref},
+        )
+    finally:
+        if workflow is not None:
+            await workflow.close()
 
 
 @router.websocket("/{chat_id}/ws")

@@ -11,30 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.models import AgentRequest, AgentResponse
 from app.agent.persistence import ConversationNotFound, ConversationStore
-from app.agent.retrieval_tool import build_default_tool_registry
-from app.agent.runtime import (AgentOrchestrator, AgentRuntime, AuthenticatedUserContext,
-                               ExecutionContext, ModelExecutor, ToolExecutor)
-from app.agent.llm.providers import build_chat_model
+from app.agent.factory import get_agent_orchestrator
+from app.agent.runtime import AgentOrchestrator, AuthenticatedUserContext, ExecutionContext
 from app.api.v1.dependencies import get_current_access_claims
-from app.core.config import get_settings
 from app.db.session import get_db
 from app.schemas.chat_api import ChatMessageOut, ChatSessionOut
 
 router = APIRouter()
-
-
-def get_agent_orchestrator(request: Request) -> AgentOrchestrator:
-    configured = getattr(request.app.state, "agent_orchestrator", None)
-    if isinstance(configured, AgentOrchestrator):
-        return configured
-    try:
-        model = build_chat_model(get_settings())
-        runtime = AgentRuntime(model_executor=ModelExecutor(model),
-                               tool_executor=ToolExecutor(build_default_tool_registry()),
-                               conversations=ConversationStore())
-        return AgentOrchestrator(runtime)
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail="Agent runtime is unavailable.") from exc
 
 
 @router.post("/turn", response_model=AgentResponse)

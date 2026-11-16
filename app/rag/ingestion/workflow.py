@@ -587,13 +587,16 @@ class RagIngestionWorkflow:
     def _payload(chunk: Any, *, scope: DocumentIndexScope, source_ref: str,
                  document_metadata: dict[str, Any], parser_metadata: dict[str, Any],
                  provider: str, model: str | None, dimensions: int, status: str) -> dict[str, Any]:
+        display_source = document_metadata.get("source_ref")
+        if not isinstance(display_source, str) or not display_source.strip():
+            display_source = Path(source_ref).name
         return {
             "record_type": "rag_chunk", "content": chunk.content,
             "user_id": scope.user_id, "knowledge_base_id": scope.knowledge_base_id,
             "document_id": scope.document_id, "document_version_id": scope.document_version_id,
             "chunk_id": chunk.id, "chunk_index": chunk.ordinal, "token_count": chunk.token_count,
             "heading_path": list(chunk.heading_path), "page_numbers": list(chunk.page_numbers),
-            "source": Path(source_ref).name,
+            "source": display_source,
             "metadata": {**document_metadata, "parser": parser_metadata,
                          "chunk": chunk.metadata, "embedding_provider": provider,
                          "embedding_model": model, "embedding_dimensions": dimensions},
