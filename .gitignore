@@ -61,7 +61,8 @@ htmlcov/
 # =========================
 # VSCode
 # =========================
-.vscode/
+.vscode/*
+!.vscode/launch.json
 
 # =========================
 # PyCharm

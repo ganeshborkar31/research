@@ -67,3 +67,30 @@ EXPOSE 8000
 #      "--timeout", "60"]
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# Development-only image target. Production builds use the default runtime stage.
+FROM python:3.11-slim AS development
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/lib/python3.11 /usr/local/lib/python3.11
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY requirements-dev.txt ./requirements-dev.txt
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+RUN useradd -m appuser
+USER appuser
+
+COPY app ./app
+COPY workers ./workers
+COPY alembic ./alembic
+COPY alembic.ini ./
+
+EXPOSE 8000

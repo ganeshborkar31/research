@@ -1,7 +1,48 @@
-version: "3.9"
-
 services:
   api:
-    command: python -m debugpy --listen 0.0.0.0:5678 --wait-for-client -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: development
+    command: >-
+      sh -c 'python -m debugpy --listen 0.0.0.0:5678
+      $${DEBUGPY_WAIT_FOR_CLIENT:+--wait-for-client}
+      -m uvicorn app.main:app --host 0.0.0.0 --port 8000'
+    environment:
+      DEBUGPY_WAIT_FOR_CLIENT: ${DEBUGPY_WAIT_FOR_CLIENT:-}
+    volumes:
+      - .:/app
     ports:
       - "5678:5678"
+
+  ingestion-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: development
+    command: >-
+      sh -c 'python -m debugpy --listen 0.0.0.0:5679
+      $${DEBUGPY_WAIT_FOR_CLIENT:+--wait-for-client}
+      -m celery -A workers.celery_app:celery_app worker --beat --loglevel=INFO --pool=solo --concurrency=1'
+    environment:
+      DEBUGPY_WAIT_FOR_CLIENT: ${DEBUGPY_WAIT_FOR_CLIENT:-}
+    volumes:
+      - .:/app
+    ports:
+      - "5679:5679"
+
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: development
+    command: >-
+      sh -c 'python -m debugpy --listen 0.0.0.0:5680
+      $${DEBUGPY_WAIT_FOR_CLIENT:+--wait-for-client}
+      -m alembic upgrade head'
+    environment:
+      DEBUGPY_WAIT_FOR_CLIENT: ${DEBUGPY_WAIT_FOR_CLIENT:-}
+    volumes:
+      - .:/app
+    ports:
+      - "5680:5680"
