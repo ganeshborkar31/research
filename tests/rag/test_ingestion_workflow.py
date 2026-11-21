@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.models import RagDocument, RagDocumentVersion, RagIngestionJob, User
-from app.rag.embeddings.base import EmbeddingConfig
+from app.rag.embeddings.base import EmbeddingConfig, PermanentEmbeddingError
 from app.rag.embeddings.service import EmbeddedChunk, EmbeddingService
 from app.rag.indexing.dense_indexer import DenseDocumentIndexer
 from app.rag.ingestion.chunking import ChunkingConfig, StructuralChunker
@@ -154,6 +154,15 @@ def test_normalization_canonicalizes_text_and_preserves_structure():
     assert normalized.elements[0].page_number == 1
     assert normalized.elements[0].metadata == {"source": "docling"}
     assert normalized.metadata == {"parser": "docling", "source_name": "policy.pdf"}
+
+
+def test_safe_error_preserves_sanitized_embedding_failure_category():
+    error = PermanentEmbeddingError(
+        "Embedding provider authentication or permissions failed (HTTP 401)"
+    )
+    assert RagIngestionWorkflow._safe_error(error) == (
+        "PermanentEmbeddingError: Embedding provider authentication or permissions failed (HTTP 401)"
+    )
 
 
 @pytest.fixture
