@@ -1,8 +1,11 @@
+import asyncio
 from types import SimpleNamespace
 
 import pytest
+from httpx import Headers
+from qdrant_client.http.exceptions import UnexpectedResponse
 
-from app.rag.stores.qdrant import QdrantVectorStore
+from app.rag.stores.qdrant import QdrantVectorStore, VectorStoreError
 from app.rag.ports.vector_store import VectorRecord
 
 
@@ -13,10 +16,11 @@ class FakeQdrant:
         self.upserts = []
         self.queries = []
         self.deleted = []
+        self.payload_indexes = []
 
     async def collection_exists(self, name): return self.exists
     async def create_collection(self, **kwargs): self.exists = True; self.created.append(kwargs)
-    async def create_payload_index(self, **kwargs): return None
+    async def create_payload_index(self, **kwargs): self.payload_indexes.append(kwargs)
     async def get_collection(self, name):
         return SimpleNamespace(config=SimpleNamespace(params=SimpleNamespace(vectors=SimpleNamespace(size=3))))
     async def upsert(self, **kwargs): self.upserts.append(kwargs)
@@ -46,6 +50,61 @@ async def test_qdrant_upsert_search_filter_and_delete():
     assert {c.key for c in must} == {"user_id", "document_id", "collection_id"}
     await store.delete_points(user_id="user-1", document_version_id="v")
     assert client.deleted
+
+
+@pytest.mark.asyncio
+async def test_ensure_collection_is_idempotent_for_existing_collection():
+    client = FakeQdrant()
+    client.exists = True
+    store = QdrantVectorStore(client=client, vector_size=3)
+
+    await store.ensure_collection()
+
+    assert client.created == []
+    assert client.payload_indexes == []
+
+
+@pytest.mark.asyncio
+async def test_concurrent_collection_initialization_accepts_create_race():
+    class RacingQdrant(FakeQdrant):
+        def __init__(self):
+            super().__init__()
+            self.waiting = 0
+            self.release = asyncio.Event()
+
+        async def collection_exists(self, name):
+            # Both callers observe the initial absence before either creates.
+            if not self.exists:
+                self.waiting += 1
+                if self.waiting == 2:
+                    self.release.set()
+                await self.release.wait()
+                return False
+            return True
+
+        async def create_collection(self, **kwargs):
+            if self.exists:
+                raise UnexpectedResponse(409, "Conflict", b"already exists", Headers())
+            self.exists = True
+            self.created.append(kwargs)
+
+    client = RacingQdrant()
+    store = QdrantVectorStore(client=client, vector_size=3)
+
+    await asyncio.gather(store.ensure_collection(), store.ensure_collection())
+
+    assert len(client.created) == 1
+
+
+@pytest.mark.asyncio
+async def test_collection_initialization_does_not_hide_non_missing_qdrant_errors():
+    class BrokenQdrant(FakeQdrant):
+        async def collection_exists(self, name):
+            raise ConnectionError("Qdrant unavailable")
+
+    store = QdrantVectorStore(client=BrokenQdrant(), vector_size=3)
+    with pytest.raises(VectorStoreError, match="Unable to ensure Qdrant collection"):
+        await store.ensure_collection()
 
 
 @pytest.mark.integration

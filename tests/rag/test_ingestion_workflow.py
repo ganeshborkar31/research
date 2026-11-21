@@ -64,6 +64,13 @@ class FakeIndexer:
         self.points = {}
         self.fail_upsert_once = False
         self.fail_delete = False
+        self.fail_ensure = False
+        self.ensure_calls = 0
+
+    async def ensure_collection(self):
+        self.ensure_calls += 1
+        if self.fail_ensure:
+            raise RuntimeError("Qdrant collection initialization failed")
 
     async def validate_collection(self, *, expected_dimensions=None):
         assert expected_dimensions == 3
@@ -327,6 +334,19 @@ async def test_expired_worker_lease_is_redispatched(workflow_env):
     result = await env.workflow.reconcile()
     assert result["dispatched"] == 1
     assert env.dispatched == [request["job_id"]]
+    with env.factory() as session:
+        assert session.get(RagIngestionJob, request["job_id"]).status == "queued"
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_fails_before_state_changes_when_collection_init_fails(workflow_env):
+    env = workflow_env
+    request = submit(env)
+    env.indexer.fail_ensure = True
+
+    with pytest.raises(RuntimeError, match="initialization failed"):
+        await env.workflow.reconcile()
+
     with env.factory() as session:
         assert session.get(RagIngestionJob, request["job_id"]).status == "queued"
 
