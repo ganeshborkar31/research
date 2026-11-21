@@ -181,6 +181,22 @@ async def test_permanent_provider_failure_is_not_retried():
 
 
 @pytest.mark.asyncio
+async def test_authentication_failure_is_reported_without_provider_message():
+    class UnauthorizedProvider(FakeProvider):
+        async def embed_documents(self, texts):
+            error = RuntimeError("authorization header contained a secret")
+            error.status_code = 401
+            raise error
+
+    service = EmbeddingService(UnauthorizedProvider(), config(max_retries=0))
+    with pytest.raises(PermanentEmbeddingError) as exc:
+        await service.embed_texts(["private document text"])
+
+    assert "authentication or permissions failed (HTTP 401)" in str(exc.value)
+    assert "secret" not in str(exc.value)
+
+
+@pytest.mark.asyncio
 async def test_rejects_empty_document_text_before_provider_call():
     provider = FakeProvider()
     service = EmbeddingService(provider, config())
