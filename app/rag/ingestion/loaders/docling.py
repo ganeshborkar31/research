@@ -80,7 +80,12 @@ class DoclingDocumentLoader(DocumentLoader):
         pdf_options.do_ocr = self.config.do_ocr
         pdf_options.do_table_structure = self.config.do_table_structure
         pdf_options.document_timeout = self.config.document_timeout
-        pdf_options.force_full_page_ocr = self.config.force_full_page_ocr
+        if self._supports_option(PdfPipelineOptions, "force_full_page_ocr"):
+            pdf_options.force_full_page_ocr = self.config.force_full_page_ocr
+        elif self.config.force_full_page_ocr:
+            raise DocumentParsingError(
+                "Installed Docling version does not support force_full_page_ocr"
+            )
         if self.config.ocr_engine.lower() == "tesseract":
             pdf_options.ocr_options = TesseractOcrOptions(lang=list(self.config.ocr_languages))
         elif self.config.ocr_engine.lower() == "rapidocr":
@@ -100,6 +105,14 @@ class DoclingDocumentLoader(DocumentLoader):
             InputFormat.HTML, InputFormat.MD, InputFormat.IMAGE,
         ], format_options=format_options)
         return self._converter
+
+    @staticmethod
+    def _supports_option(options_type: Any, name: str) -> bool:
+        """Handle Docling option fields across Pydantic v1 and v2 releases."""
+        fields = getattr(options_type, "model_fields", None)
+        if fields is None:
+            fields = getattr(options_type, "__fields__", {})
+        return name in fields
 
     def load(self, source: str | Path) -> NormalizedDocument:
         path = Path(source)
