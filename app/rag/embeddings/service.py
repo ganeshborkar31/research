@@ -191,4 +191,11 @@ class EmbeddingService:
         # Provider exception text may contain request details; report only its type.
         if isinstance(exc, EmbeddingError):
             return str(exc)
+        status = EmbeddingService._status_code(exc)
+        if status in {401, 403}:
+            return f"Embedding provider authentication or permissions failed (HTTP {status})"
+        if status == 404:
+            return "Embedding model or endpoint was not found (HTTP 404)"
+        if status == 400:
+            return "Embedding provider rejected the request (HTTP 400)"
         return f"{type(exc).__name__}: embedding request was rejected"

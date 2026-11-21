@@ -16,7 +16,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.rag_document import RagDocument, RagDocumentVersion, RagIngestionJob
-from app.rag.embeddings.base import PartialEmbeddingError, PermanentEmbeddingError
+from app.rag.embeddings.base import EmbeddingError, PartialEmbeddingError, PermanentEmbeddingError
 from app.rag.embeddings.service import EmbeddingService
 from app.rag.indexing.dense_indexer import DenseDocumentIndexer
 from app.rag.indexing.errors import IndexCollectionConfigurationError
@@ -743,5 +743,9 @@ class RagIngestionWorkflow:
     def _safe_error(exc: Exception) -> str:
         if isinstance(exc, DocumentLoadError):
             return f"Document parsing failed ({type(exc).__name__})"
+        if isinstance(exc, EmbeddingError):
+            # EmbeddingService/provider adapters sanitize upstream errors before
+            # raising these domain exceptions; preserve their actionable category.
+            return f"{type(exc).__name__}: {exc}"
         return f"{type(exc).__name__}: ingestion stage failed"
 
