@@ -8,6 +8,7 @@ from collections.abc import Iterable, Sequence
 from typing import Any
 
 from qdrant_client import AsyncQdrantClient
+from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.http import models
 
 from app.core.config import get_settings
@@ -119,10 +120,28 @@ class QdrantVectorStore:
                 if configured.size != size:
                     raise ValueError(f"Collection {collection!r} dimension {configured.size} != {size}")
                 return
-            await self._client.create_collection(
-                collection_name=collection,
-                vectors_config=models.VectorParams(size=size, distance=models.Distance.COSINE),
-            )
+            try:
+                await self._client.create_collection(
+                    collection_name=collection,
+                    vectors_config=models.VectorParams(size=size, distance=models.Distance.COSINE),
+                )
+            except UnexpectedResponse as exc:
+                # Another API/worker process may win the create race. Accept only
+                # that outcome after observing and validating the created collection.
+                if exc.status_code != 409:
+                    raise
+                if not await self._client.collection_exists(collection):
+                    raise
+                info = await self._client.get_collection(collection)
+                configured = info.config.params.vectors
+                if isinstance(configured, dict):
+                    configured = next(iter(configured.values()))
+                if configured.size != size:
+                    raise ValueError(
+                        f"Collection {collection!r} dimension {configured.size} != {size}"
+                    )
+                logger.info("Qdrant collection %s was initialized concurrently", collection)
+                return
             for field in ("user_id", "document_id", "document_version_id", "collection_id"):
                 await self._client.create_payload_index(
                     collection_name=collection, field_name=field,

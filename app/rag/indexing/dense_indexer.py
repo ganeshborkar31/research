@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections.abc import Sequence
 from uuid import NAMESPACE_URL, uuid5
 
@@ -18,10 +19,13 @@ from app.rag.indexing.errors import (
 )
 from app.rag.indexing.models import DocumentIndexScope
 from app.rag.ports.vector_store import VectorRecord
+from app.rag.stores.qdrant import QdrantVectorStore
+
+logger = logging.getLogger(__name__)
 
 
 class DenseDocumentIndexer:
-    """Use an already-provisioned, unnamed dense collection; never create collections."""
+    """Use the configured unnamed dense collection for versioned point operations."""
 
     def __init__(
         self,
@@ -45,6 +49,20 @@ class DenseDocumentIndexer:
     async def close(self) -> None:
         if self._owns_client:
             await self._client.close()
+
+    async def ensure_collection(self) -> None:
+        """Create the configured collection once when absent; validate, never replace."""
+        settings = get_settings()
+        store = QdrantVectorStore(
+            client=self._client,
+            collection_name=self.collection_name,
+            vector_size=settings.qdrant_vector_size,
+        )
+        try:
+            await store.ensure_collection()
+        except Exception:
+            logger.exception("Unable to initialize Qdrant collection %s", self.collection_name)
+            raise
 
     @staticmethod
     def point_id(scope: DocumentIndexScope, chunk_id: str) -> str:
@@ -137,6 +155,7 @@ class DenseDocumentIndexer:
             completed += len(batch)
 
     async def scroll(self, point_filter: models.Filter) -> list[object]:
+        await self.ensure_collection()
         points: list[object] = []
         offset = None
         while True:

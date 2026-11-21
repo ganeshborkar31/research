@@ -224,6 +224,9 @@ class RagIngestionWorkflow:
         return result
 
     async def process(self, job_id: str) -> dict[str, str]:
+        # Workers can start before the API has ever served a request. Ensure the
+        # shared collection before claiming work or performing compensation.
+        await self.indexer.ensure_collection()
         claim = self._claim(job_id)
         if claim is None:
             return {"job_id": job_id, "status": "skipped"}
@@ -381,6 +384,9 @@ class RagIngestionWorkflow:
             return {"document_id": document_id, "status": "deleting"}
 
     async def reconcile(self) -> dict[str, int]:
+        # Fail the task before changing durable job state if Qdrant cannot be
+        # initialized. The scheduled reconciliation will retry on its next run.
+        await self.indexer.ensure_collection()
         now = datetime.now(timezone.utc)
         stale_dispatch_before = now - timedelta(seconds=self.dispatch_after_seconds)
         with self.sessions() as session:
