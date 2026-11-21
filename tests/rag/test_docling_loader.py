@@ -78,3 +78,14 @@ def test_rejects_oversized_input(tmp_path):
     loader = DoclingDocumentLoader(config=DoclingLoaderConfig(max_file_bytes=2), converter=_Converter())
     with pytest.raises(DocumentTooLargeError):
         loader.load(source)
+
+
+def test_optional_docling_option_detection_supports_current_and_legacy_models():
+    class CurrentOptions:
+        model_fields = {"do_ocr": object()}
+
+    class LegacyOptions:
+        __fields__ = {"force_full_page_ocr": object()}
+
+    assert not DoclingDocumentLoader._supports_option(CurrentOptions, "force_full_page_ocr")
+    assert DoclingDocumentLoader._supports_option(LegacyOptions, "force_full_page_ocr")
