@@ -9,7 +9,6 @@ dependencies = [
   "fastapi",
   "httpx",
   "uvicorn",
-  "debugpy",
   "python-multipart",     # form parsing (OAuth2 login form, multipart uploads)
   # AI / RAG
   "langchain",
